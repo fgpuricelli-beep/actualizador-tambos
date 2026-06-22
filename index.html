@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actualizador de Tambos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+  :root{--bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3050;--accent:#4f8ef7;--accent2:#38d9a9;--danger:#ff6b6b;--warn:#ffa94d;--text:#e8eaf2;--text2:#8892b0;--text3:#4a5580}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;padding:40px 20px}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0}
+  .container{max-width:760px;margin:0 auto;position:relative;z-index:1}
+  .header{margin-bottom:48px}
+  .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .header-tag::before{content:'';width:24px;height:1px;background:var(--accent)}
+  h1{font-size:36px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-bottom:12px}
+  h1 span{color:var(--accent)}
+  .subtitle{color:var(--text2);font-size:14px;font-weight:300;line-height:1.6}
+  .steps{display:flex;flex-direction:column;gap:16px;margin-bottom:32px}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;transition:border-color .2s}
+  .step.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 32px rgba(79,142,247,.08)}
+  .step.done{border-color:var(--accent2)}
+  .step-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .step-num{width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;color:var(--text2);flex-shrink:0}
+  .step.done .step-num{background:var(--accent2);border-color:var(--accent2);color:#0f1117;font-weight:700}
+  .step-title{font-size:15px;font-weight:600}
+  .step-desc{font-size:12px;color:var(--text2);font-weight:300;margin-top:2px}
+  .drop-zone{border:1.5px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative}
+  .drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.05)}
+  .drop-zone.loaded{border-color:var(--accent2);border-style:solid;background:rgba(56,217,169,.05)}
+  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .drop-icon{font-size:28px;margin-bottom:8px}
+  .drop-label{font-size:13px;color:var(--text2)}
+  .drop-label strong{color:var(--accent)}
+  .drop-label.success{color:var(--accent2)}
+  .drop-ext{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:4px}
+  .info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;display:none}
+  .info-box.visible{display:block}
+  .info-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border)}
+  .info-row:last-child{border-bottom:none}
+  .info-label{color:var(--text2);font-family:'DM Mono',monospace}
+  .info-val{color:var(--text);font-weight:600}
+  .skip-link{margin-top:10px;text-align:right}
+  .skip-link span{font-size:12px;color:var(--text3);cursor:pointer;text-decoration:underline}
+  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:10px}
+  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,142,247,.3)}
+  .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .result-box{background:var(--surface);border:1px solid var(--accent2);border-radius:12px;padding:28px;margin-top:20px;display:none}
+  .result-box.visible{display:block}
+  .result-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:16px}
+  .result-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+  .stat-num{font-family:'DM Mono',monospace;font-size:28px;font-weight:500;margin-bottom:4px}
+  .stat-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+  .btn-download{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-download:hover{background:rgba(56,217,169,.1)}
+  .error-box{background:rgba(255,107,107,.08);border:1px solid var(--danger);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--danger);margin-top:12px;display:none}
+  .error-box.visible{display:block}
+  .log{font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);margin-top:16px;line-height:1.8}
+  .log-ok{color:var(--accent2)}.log-warn{color:var(--warn)}.log-info{color:var(--accent)}
+  .divider{height:1px;background:var(--border);margin:16px 0}
+  .pyodide-status{text-align:center;padding:12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px;margin-bottom:20px}
+  .pyodide-status.ready{color:var(--accent2)}
+  .pyodide-status.loading{color:var(--warn)}
+  .pyodide-status.error{color:var(--danger)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-tag">Sistema de Gestión</div>
+    <h1>Actualizador de<br><span>Base de Datos Tambos</span></h1>
+    <p class="subtitle">Actualizá la base mensual de cualquier tambo. El sistema actualiza RCS, leche, estado, mastitis clínicas y gestiona altas y bajas automáticamente.</p>
+  </div>
+
+  <div class="pyodide-status loading" id="py-status">⏳ Cargando motor Python... (puede tardar ~30 segundos la primera vez)</div>
+
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-header"><div class="step-num" id="num1">1</div>
+        <div><div class="step-title">Base de datos del tambo</div><div class="step-desc">Archivo Excel con el historial completo</div></div></div>
+      <div class="drop-zone" id="drop-excel">
+        <input type="file" id="file-excel" accept=".xlsx,.xls" onchange="handleFile('excel',this)">
+        <div class="drop-icon">📊</div>
+        <div class="drop-label" id="label-excel">Hacé clic o arrastrá el <strong>Excel</strong> acá</div>
+        <div class="drop-ext">.xlsx</div>
+      </div>
+      <div class="info-box" id="info-excel"><div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="excel-name">—</span></div></div>
+    </div>
+
+    <div class="step" id="step2">
+      <div class="step-header"><div class="step-num" id="num2">2</div>
+        <div><div class="step-title">CSV del control lechero</div><div class="step-desc">Exportado del programa de gestión</div></div></div>
+      <div class="drop-zone" id="drop-csv">
+        <input type="file" id="file-csv" accept=".csv" onchange="handleFile('csv',this)">
+        <div class="drop-icon">📋</div>
+        <div class="drop-label" id="label-csv">Hacé clic o arrastrá el <strong>CSV</strong> acá</div>
+        <div class="drop-ext">.csv</div>
+      </div>
+      <div class="info-box" id="info-csv"><div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="csv-name">—</span></div></div>
+    </div>
+
+    <div class="step" id="step3">
+      <div class="step-header"><div class="step-num" id="num3">3</div>
+        <div><div class="step-title">CSV de mastitis clínicas <span style="color:var(--text3);font-weight:300;font-size:12px">(opcional)</span></div><div class="step-desc">Eventos de MC del período</div></div></div>
+      <div class="drop-zone" id="drop-mc">
+        <input type="file" id="file-mc" accept=".csv" onchange="handleFile('mc',this)">
+        <div class="drop-icon">🦠</div>
+        <div class="drop-label" id="label-mc">Hacé clic o arrastrá el <strong>CSV de mastitis</strong> acá</div>
+        <div class="drop-ext">.csv · opcional</div>
+      </div>
+      <div class="info-box" id="info-mc"><div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="mc-name">—</span></div></div>
+      <div class="skip-link"><span onclick="skipMC()">Saltar este paso →</span></div>
+    </div>
+
+    <div class="step" id="step4">
+      <div class="step-header"><div class="step-num" id="num4">4</div>
+        <div><div class="step-title">Actualizar base</div><div class="step-desc">Procesá y descargá la base actualizada</div></div></div>
+      <button class="btn-run" id="btn-run" disabled onclick="runUpdate()">
+        <span id="btn-text">Actualizar base de datos</span>
+      </button>
+      <div class="error-box" id="error-box"></div>
+    </div>
+  </div>
+
+  <div class="result-box" id="result-box">
+    <div class="result-title">✓ Base actualizada correctamente</div>
+    <div class="result-stats">
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent)" id="stat-updated">0</div><div class="stat-label">Actualizadas</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent2)" id="stat-new">0</div><div class="stat-label">Altas</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--warn)" id="stat-baja">0</div><div class="stat-label">Bajas</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:#c084fc" id="stat-mc">0</div><div class="stat-label">MC registradas</div></div>
+    </div>
+    <div class="log" id="log-box"></div>
+    <div class="divider"></div>
+    <button class="btn-download" id="btn-download" onclick="downloadResult()">⬇ Descargar Excel actualizado</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+let pyodide = null;
+let pyReady = false;
+let resultBytes = null;
+let files = { excel: null, csv: null, mc: null };
+let mcSkipped = false;
+
+// Load Pyodide + openpyxl
+(async function() {
+  const status = document.getElementById('py-status');
+  try {
+    pyodide = await loadPyodide();
+    status.textContent = '⏳ Instalando openpyxl...';
+    await pyodide.loadPackage('micropip');
+    await pyodide.runPythonAsync(`
+import micropip
+await micropip.install('openpyxl')
+`);
+    // Load our processing code
+    await pyodide.runPythonAsync(PYTHON_CODE);
+    pyReady = true;
+    status.textContent = '✓ Motor Python listo';
+    status.className = 'pyodide-status ready';
+    checkReady();
+  } catch(e) {
+    status.textContent = '✗ Error cargando Python: ' + e.message;
+    status.className = 'pyodide-status error';
+  }
+})();
+
+// ── FILE HANDLING ─────────────────────────────────────────────
+function handleFile(type, input) {
+  const file = input.files[0]; if(!file) return;
+  files[type] = file;
+  document.getElementById(type+'-name').textContent = file.name;
+  document.getElementById('info-'+type).classList.add('visible');
+  document.getElementById('drop-'+type).classList.add('loaded');
+  document.getElementById('label-'+type).innerHTML = '✓ <strong>'+file.name+'</strong>';
+  document.getElementById('label-'+type).className = 'drop-label success';
+  const n = {excel:1,csv:2,mc:3}[type];
+  document.getElementById('num'+n).textContent = '✓';
+  document.getElementById('step'+n).classList.add('done');
+  if(type==='mc') mcSkipped = false;
+  if(n+1<=4) document.getElementById('step'+(n+1)).classList.add('active');
+  checkReady();
+}
+
+function skipMC() {
+  mcSkipped = true;
+  document.getElementById('num3').textContent = '—';
+  document.getElementById('step3').classList.add('done');
+  document.getElementById('step4').classList.add('active');
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('btn-run').disabled = !(pyReady && files.excel && files.csv && (files.mc || mcSkipped));
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg; el.classList.add('visible');
+}
+
+function readFileAsBytes(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = e => res(new Uint8Array(e.target.result));
+    r.onerror = rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+// ── RUN UPDATE ────────────────────────────────────────────────
+async function runUpdate() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('btn-text').innerHTML = '<div class="spinner"></div> Procesando...';
+  document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('result-box').classList.remove('visible');
+
+  try {
+    const excelBytes = await readFileAsBytes(files.excel);
+    const csvBytes = await readFileAsBytes(files.csv);
+    const mcBytes = files.mc ? await readFileAsBytes(files.mc) : null;
+
+    // Pass bytes to Python
+    pyodide.globals.set('excel_bytes', excelBytes);
+    pyodide.globals.set('csv_bytes', csvBytes);
+    pyodide.globals.set('mc_bytes', mcBytes);
+    pyodide.globals.set('csv_filename', files.csv.name);
+
+    const resultJson = await pyodide.runPythonAsync(`
+import json
+result_bytes, result_info = run_update(excel_bytes, csv_bytes, mc_bytes, csv_filename)
+js_result = json.dumps(result_info)
+js_result
+`);
+
+    const info = JSON.parse(resultJson);
+
+    // Get the output bytes - bytes objects need explicit conversion
+    const resultBytesProxy = pyodide.globals.get('result_bytes');
+    resultBytes = resultBytesProxy.toJs({create_proxies: false});
+    if (resultBytes instanceof ArrayBuffer) resultBytes = new Uint8Array(resultBytes);
+    resultBytesProxy.destroy();
+
+    document.getElementById('stat-updated').textContent = info.updated;
+    document.getElementById('stat-new').textContent = info.new_rps.length;
+    document.getElementById('stat-baja').textContent = info.baja_rps.length;
+    document.getElementById('stat-mc').textContent = info.mc_count;
+
+    const log = [];
+    log.push(`<span class="log-ok">✓ ${info.updated} vacas actualizadas — ${info.month}</span>`);
+    if(info.mc_count>0) log.push(`<span class="log-ok">✓ ${info.mc_count} registros de mastitis clínica actualizados</span>`);
+    if(info.new_rps.length>0) log.push(`<span class="log-info">+ ${info.new_rps.length} vacas nuevas: ${info.new_rps.join(', ')}</span>`);
+    if(info.baja_rps.length>0) log.push(`<span class="log-warn">↓ ${info.baja_rps.length} vacas movidas a Bajas</span>`);
+    document.getElementById('log-box').innerHTML = log.join('<br>');
+
+    document.getElementById('result-box').classList.add('visible');
+    document.getElementById('num4').textContent = '✓';
+    document.getElementById('step4').classList.add('done');
+    document.getElementById('btn-text').textContent = '✓ Completado';
+
+  } catch(e) {
+    showError('Error: ' + e.message);
+    document.getElementById('btn-text').textContent = 'Actualizar base de datos';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function downloadResult() {
+  if(!resultBytes) return;
+  const blob = new Blob([resultBytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'base_actualizada.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── DRAG & DROP ───────────────────────────────────────────────
+['drop-excel','drop-csv','drop-mc'].forEach(id => {
+  const el = document.getElementById(id);
+  const type = id.replace('drop-','');
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('dragover');
+    const file = e.dataTransfer.files[0]; if(!file) return;
+    const inp = document.getElementById('file-'+type);
+    const dt = new DataTransfer(); dt.items.add(file); inp.files = dt.files;
+    handleFile(type, inp);
+  });
+});
+
+// ── PYTHON CODE ───────────────────────────────────────────────
+const PYTHON_CODE = `
+import io, csv as csvmod, datetime, re
+from openpyxl import load_workbook
+from openpyxl.comments import Comment
+
+def clean_num(val):
+    if val is None: return None
+    s = str(val).strip().replace(',', '.')
+    if not s: return None
+    try: return float(s)
+    except: return None
+
+def clean_date(val):
+    if val is None: return None
+    s = str(val).strip()
+    if not s: return None
+    for fmt in ('%d/%m/%y', '%d/%m/%Y'):
+        try: return datetime.datetime.strptime(s, fmt).date()
+        except: pass
+    return None
+
+def read_csv_bytes(data):
+    if data is None: return []
+    if hasattr(data, 'tobytes'): data = data.tobytes()
+    text = data.decode('latin1')
+    sep = ';' if text.split('\\n',1)[0].count(';') > text.split('\\n',1)[0].count(',') else ','
+    reader = csvmod.DictReader(io.StringIO(text), delimiter=sep)
+    return [{(k.strip() if k else k): (v.strip() if isinstance(v,str) else v) for k,v in row.items()} for row in reader]
+
+def detect_month(filename):
+    months = {'ENE':'enero','FEB':'febrero','MAR':'marzo','ABR':'abril','MAY':'mayo','JUN':'junio','JUL':'julio','AGO':'agosto','SEP':'septiembre','OCT':'octubre','NOV':'noviembre','DIC':'diciembre'}
+    f = filename.upper()
+    for k, v in months.items():
+        idx = f.find(k)
+        if idx != -1:
+            rest = f[idx+len(k):]
+            m = re.search(r'(\\d{2})', rest)
+            if m:
+                yy = m.group(1)
+                return v + ' 20' + yy
+            return v
+    meses_es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    today = datetime.date.today()
+    return f'{meses_es[today.month-1]} {today.year} (no detectado del nombre de archivo)'
+
+def find_header_row(ws):
+    """Find the row where column A header is exactly 'RP' (identification column).
+    Tries rows 1 through 10."""
+    for r in range(1, 11):
+        v = ws.cell(r, 1).value
+        if v is not None and str(v).strip() == 'RP':
+            return r
+    # Fallback: row 5 (legacy default)
+    return 5
+
+def find_columns(ws, header_row):
+    target_names = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA',
+                     'Prox.Secado','Estado','Est.Actual','Tambo'}
+
+    # Find the summary block by locating "Est.Actual" (most distinctive header,
+    # only ever appears once, in the summary section) or "Tambo" as anchors,
+    # then collect nearby target headers (summary block is always contiguous).
+    anchor_col = None
+    for c in range(2, ws.max_column + 1):
+        v = ws.cell(header_row, c).value
+        if v is not None and str(v).strip() == 'Est.Actual':
+            anchor_col = c
+            break
+    if anchor_col is None:
+        for c in range(2, ws.max_column + 1):
+            v = ws.cell(header_row, c).value
+            if v is not None and str(v).strip() == 'Tambo':
+                anchor_col = c
+                break
+
+    found = {}
+    if anchor_col is not None:
+        # Summary block is contiguous; scan a window around the anchor (±15 cols)
+        lo, hi = max(2, anchor_col - 15), min(ws.max_column, anchor_col + 5)
+        for c in range(lo, hi + 1):
+            v = ws.cell(header_row, c).value
+            if v is None: continue
+            name = str(v).strip()
+            if name in target_names and name not in found:
+                found[name] = c
+    else:
+        # Fallback: take the LAST occurrence of each target header in the row
+        # (summary section is always the rightmost one)
+        for c in range(2, ws.max_column + 1):
+            v = ws.cell(header_row, c).value
+            if v is None: continue
+            name = str(v).strip()
+            if name in target_names:
+                found[name] = c  # keep overwriting -> ends up as last occurrence
+
+    summary_rp = found.get('RP')
+    if summary_rp is None:
+        raise ValueError('No se encontró la columna "RP" del resumen final en la fila de encabezados. Verificá que el Excel tenga esa columna con el encabezado exacto "RP" (además de la columna A de identificación).')
+
+    # RCS section: prefer the explicit "Re.UC" header; fallback to last date column before summary block
+    rcs_col = found.get('Re.UC')
+    if rcs_col is None:
+        for c in range(summary_rp - 1, 1, -1):
+            if isinstance(ws.cell(header_row, c).value, datetime.datetime):
+                rcs_col = c
+                break
+
+    mc_cols = {}
+    for c in range(2, ws.max_column + 1):
+        v = ws.cell(header_row, c).value
+        if isinstance(v, datetime.datetime):
+            mc_cols[f'{v.year}-{v.month:02d}'] = c
+        elif mc_cols:
+            # stop at the first non-date column after we've started collecting
+            # (MC section is a contiguous block of monthly date columns)
+            break
+
+    return {
+        'summary_rp': summary_rp,
+        'rcs': rcs_col,
+        'nro_lact': found.get('Nro.Lact'),
+        'ini_lact': found.get('Ini.Lact'),
+        'dias_acu': found.get('Dias ACU'),
+        'le_uc': found.get('Le.UC'),
+        'le_ca': found.get('Le.CA'),
+        're_ca': found.get('Re.CA'),
+        'prox_secado': found.get('Prox.Secado'),
+        'estado': found.get('Estado'),
+        'est_actual': found.get('Est.Actual'),
+        'tambo': found.get('Tambo'),
+        'mc_cols': mc_cols,
+    }
+
+def normalize_rp(val):
+    """Normalize an RP value to a comparable key. Handles plain numbers (1176)
+    and letter-prefixed IDs (e.g. 'A  127' -> 'A127'). Returns None if empty."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    # Collapse internal whitespace (e.g. "A  127" -> "A127")
+    s = re.sub(r'\\s+', '', s)
+    # Plain numeric RP -> normalize as int-like string without leading zeros issues
+    if s.lstrip('-').isdigit():
+        try:
+            return str(int(s))
+        except ValueError:
+            return s
+    return s.upper()
+
+def run_update(excel_data, csv_data, mc_data, csv_filename):
+    excel_data = bytes(excel_data)
+    csv_data = bytes(csv_data)
+    try:
+        mc_data = bytes(mc_data) if mc_data is not None else None
+    except (TypeError, ValueError):
+        mc_data = None
+
+    wb = load_workbook(io.BytesIO(excel_data))
+    ws = wb['Información']
+    header_row = find_header_row(ws)
+    data_start = header_row + 1
+    cols = find_columns(ws, header_row)
+
+    db_rows = {}
+    for r in range(data_start, ws.max_row+1):
+        val = ws.cell(r,1).value
+        rp = normalize_rp(val)
+        if rp is None: continue
+        db_rows[rp] = r
+    db_rps = set(db_rows.keys())
+
+    csv_rows = read_csv_bytes(csv_data)
+    tambo_groups = {}
+    for row in csv_rows:
+        if normalize_rp(row.get('RP','')) is None: continue
+        tambo_groups.setdefault(row.get('Tambo','X'), []).append(row)
+    selected = csv_rows
+    if len(tambo_groups)>1:
+        best=-1
+        for t,rows in tambo_groups.items():
+            ov=sum(1 for r in rows if normalize_rp(r['RP']) in db_rps)
+            if ov>best: best=ov; selected=rows
+
+    csv_map = {}
+    csv_map_display = {}  # normalized -> original RP value (for writing back)
+    for row in selected:
+        rp = normalize_rp(row.get('RP',''))
+        if rp is None: continue
+        csv_map[rp]={'Estado':row.get('Estado',''),'EstActual':row.get('Est.Actual',''),
+            'NroLact':clean_num(row.get('Nro.Lact')),'IniLact':clean_date(row.get('Ini.Lact')),
+            'LeUC':clean_num(row.get('Le.UC')),'ReUC':clean_num(row.get('Re.UC')),
+            'LeCA':clean_num(row.get('Le.CA')),'ReCA':clean_num(row.get('Re.CA')),
+            'ProxSecado':clean_date(row.get('Prox.Secado')),
+            'DiasACU':clean_num(row.get('Dias ACU')),'Tambo':row.get('Tambo','')}
+        csv_map_display[rp] = str(row.get('RP','')).strip()
+
+    updated = 0
+    for rp,r in db_rows.items():
+        d=csv_map.get(rp)
+        if not d: continue
+        if cols['rcs']: ws.cell(r,cols['rcs']).value=d['ReUC']
+        rp_display = csv_map_display.get(rp, rp)
+        rp_write = int(rp_display) if rp_display.lstrip('-').isdigit() else rp_display
+        ws.cell(r,cols['summary_rp']).value=rp_write
+        if cols['nro_lact']: ws.cell(r,cols['nro_lact']).value=d['NroLact']
+        if cols['ini_lact']: ws.cell(r,cols['ini_lact']).value=d['IniLact']
+        if cols['dias_acu']: ws.cell(r,cols['dias_acu']).value=d['DiasACU']
+        if cols['le_uc']: ws.cell(r,cols['le_uc']).value=d['LeUC']
+        if cols['le_ca']: ws.cell(r,cols['le_ca']).value=d['LeCA']
+        if cols['re_ca']: ws.cell(r,cols['re_ca']).value=d['ReCA']
+        if cols['prox_secado']: ws.cell(r,cols['prox_secado']).value=d['ProxSecado']
+        if cols['estado']: ws.cell(r,cols['estado']).value=d['Estado']
+        if cols['est_actual']: ws.cell(r,cols['est_actual']).value=d['EstActual']
+        if cols['tambo']: ws.cell(r,cols['tambo']).value=d['Tambo']
+        updated+=1
+
+    mc_count=0
+    mc_rows=read_csv_bytes(mc_data) if mc_data else []
+    if mc_rows:
+        mc_groups={}  # rp -> {month_key: set of date objects}
+        for row in mc_rows:
+            rp=normalize_rp(row.get('RP',''))
+            if rp is None: continue
+            fecha=(row.get('Fecha') or row.get('FECHA') or '').strip()
+            parts=fecha.split('/')
+            if len(parts)<3: continue
+            try:
+                day,mon=int(parts[0]),int(parts[1])
+                yr=int('20'+parts[2]) if len(parts[2])==2 else int(parts[2])
+                dt=datetime.date(yr,mon,day)
+            except (ValueError, TypeError):
+                continue
+            key=f'{yr}-{mon:02d}'
+            mc_groups.setdefault(rp,{}).setdefault(key,set()).add(dt)
+
+        for rp,months in mc_groups.items():
+            r=db_rows.get(rp)
+            if r is None: continue
+            for month_key,new_dates in months.items():
+                c=cols['mc_cols'].get(month_key)
+                if c is None: continue
+                cell=ws.cell(r,c)
+                existing=cell.value
+
+                # Collect all existing dates (real date value + any already in comment)
+                all_dates=set(new_dates)
+                if isinstance(existing,(datetime.datetime,datetime.date)):
+                    existing_dt = existing.date() if isinstance(existing, datetime.datetime) else existing
+                    all_dates.add(existing_dt)
+                elif existing:
+                    # legacy text format (dd/mm separated by |) - try to parse back using month_key year/month
+                    yr, mon = map(int, month_key.split('-'))
+                    for d in str(existing).split('|'):
+                        d=d.strip()
+                        if not d: continue
+                        try:
+                            dd, mm = d.split('/')
+                            all_dates.add(datetime.date(yr, int(mm), int(dd)))
+                        except Exception:
+                            pass
+                # Also merge any dates already noted in the existing comment
+                if cell.comment and cell.comment.text:
+                    yr, mon = map(int, month_key.split('-'))
+                    for d in cell.comment.text.replace('Otros episodios:','').split('|'):
+                        d=d.strip()
+                        if not d: continue
+                        try:
+                            dd, mm = d.split('/')
+                            all_dates.add(datetime.date(yr, int(mm), int(dd)))
+                        except Exception:
+                            pass
+
+                sorted_dates = sorted(all_dates)
+                first_date = sorted_dates[0]
+                rest_dates = sorted_dates[1:]
+
+                cell.value = first_date
+                cell.number_format = 'DD/MM/YYYY'
+                if rest_dates:
+                    comment_text = 'Otros episodios: ' + ' | '.join(d.strftime('%d/%m') for d in rest_dates)
+                    cell.comment = Comment(comment_text, 'Actualizador Tambos')
+                mc_count += len(sorted_dates)
+
+    csv_rps=set(csv_map.keys())
+    new_rps=sorted(csv_rps-db_rps)
+    baja_rps=sorted(db_rps-csv_rps)
+
+    if baja_rps:
+        if 'Bajas' not in wb.sheetnames:
+            ws_b=wb.create_sheet('Bajas')
+            for c in range(1,ws.max_column+1):
+                src=ws.cell(header_row,c)
+                dst=ws_b.cell(1,c)
+                dst.value=src.value
+        else:
+            ws_b=wb['Bajas']
+        next_row=ws_b.max_row+1
+        for rp in baja_rps:
+            r=db_rows[rp]
+            for c in range(1,ws.max_column+1):
+                ws_b.cell(next_row,c).value=ws.cell(r,c).value
+            next_row+=1
+        for rp in baja_rps:
+            ws.delete_rows(db_rows[rp])
+
+    if new_rps:
+        last_row=header_row
+        for r in range(data_start,ws.max_row+1):
+            if ws.cell(r,1).value is not None: last_row=r
+        new_row=last_row+1
+        for rp in new_rps:
+            d=csv_map[rp]
+            rp_display = csv_map_display.get(rp, rp)
+            rp_write = int(rp_display) if rp_display.lstrip('-').isdigit() else rp_display
+            ws.cell(new_row,1).value=rp_write
+            ws.cell(new_row,2).value=d['IniLact']
+            if cols['rcs']: ws.cell(new_row,cols['rcs']).value=d['ReUC']
+            ws.cell(new_row,cols['summary_rp']).value=rp_write
+            if cols['nro_lact']: ws.cell(new_row,cols['nro_lact']).value=d['NroLact']
+            if cols['ini_lact']: ws.cell(new_row,cols['ini_lact']).value=d['IniLact']
+            if cols['dias_acu']: ws.cell(new_row,cols['dias_acu']).value=d['DiasACU']
+            if cols['le_uc']: ws.cell(new_row,cols['le_uc']).value=d['LeUC']
+            if cols['le_ca']: ws.cell(new_row,cols['le_ca']).value=d['LeCA']
+            if cols['re_ca']: ws.cell(new_row,cols['re_ca']).value=d['ReCA']
+            if cols['prox_secado']: ws.cell(new_row,cols['prox_secado']).value=d['ProxSecado']
+            if cols['estado']: ws.cell(new_row,cols['estado']).value=d['Estado']
+            if cols['est_actual']: ws.cell(new_row,cols['est_actual']).value=d['EstActual']
+            if cols['tambo']: ws.cell(new_row,cols['tambo']).value=d['Tambo']
+            new_row+=1
+
+    out=io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+
+    meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+    today=datetime.date.today()
+    fname=f'base_actualizada_{meses[today.month-1]}-{str(today.year)[2:]}.xlsx'
+
+    return out.read(), {'updated':updated,'new_rps':new_rps,'baja_rps':baja_rps,'mc_count':mc_count,'month':detect_month(csv_filename),'filename':fname}
+`;
+</script>
+</body>
+</html>
