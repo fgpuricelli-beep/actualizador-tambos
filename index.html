@@ -912,7 +912,7 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
         total_perdida+=d['perdida']
 
     ws.merge_cells('O2:T2')
-    ws['O2']=f"Total: {len(all_rows)}   🔴{cats['DESCARTAR']}   🟠{cats['SECAR']}   🟡{cats['CONTROLAR']}   🟢{cats['OBSERVAR']}   |   Pérdida est.: ${int(total_perdida):,}"
+    ws['O2']=f"Total: {len(all_rows)}   🔴{cats['DESCARTAR']}   🟠{cats['SECAR']}   🟡{cats['CONTROLAR']}   🟢{cats['OBSERVAR']}   |   Pérdida est.: $" + f"{int(total_perdida):,}"
     ws['O2'].font=Font(name='Arial',bold=True,size=9)
     ws['O2'].fill=xfill('E8E8E8'); ws['O2'].alignment=xcenter()
 `;
