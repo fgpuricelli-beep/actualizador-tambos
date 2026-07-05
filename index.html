@@ -375,7 +375,7 @@ def find_columns(ws, header_row):
 
     found = {}
     if anchor_col is not None:
-        # Summary block is contiguous; scan a window around the anchor (±15 cols)
+        # Summary block is contiguous; scan a window around the anchor (+/-15 cols)
         lo, hi = max(2, anchor_col - 15), min(ws.max_column, anchor_col + 5)
         for c in range(lo, hi + 1):
             v = ws.cell(header_row, c).value
@@ -395,7 +395,7 @@ def find_columns(ws, header_row):
 
     summary_rp = found.get('RP')
     if summary_rp is None:
-        raise ValueError('No se encontró la columna "RP" del resumen final en la fila de encabezados. Verificá que el Excel tenga esa columna con el encabezado exacto "RP" (además de la columna A de identificación).')
+        raise ValueError('No se encontro la columna "RP" del resumen final en la fila de encabezados. Verifica que el Excel tenga esa columna con el encabezado exacto "RP" (ademas de la columna A de identificacion).')
 
     # RCS section: prefer the explicit "Re.UC" header; fallback to last date column before summary block
     rcs_col = found.get('Re.UC')
@@ -458,7 +458,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         mc_data = None
 
     wb = load_workbook(io.BytesIO(excel_data))
-    ws = wb['Información']
+    ws = wb['Informacion']
     header_row = find_header_row(ws)
     data_start = header_row + 1
     cols = find_columns(ws, header_row)
@@ -644,7 +644,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
     return out.read(), {'updated':updated,'new_rps':new_rps,'baja_rps':baja_rps,'mc_count':mc_count,'month':detect_month(csv_filename),'filename':fname}
 
 def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
-    """Recalcula la hoja Ranking con los datos actualizados de Información."""
+    """Recalcula la hoja Ranking con los datos actualizados de Informacion."""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
@@ -785,13 +785,13 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
         litros_dia = (float(le_uc)/30) if le_uc else 0
         litros_desc = round(mc_total*6*litros_dia, 1)
         perdida = round(litros_desc*300, 0)
-        prod_vs = f'{int(le_uc)}L ({int(float(le_uc)/20*100)}%)' if le_uc else '—'
+        prod_vs = f'{int(le_uc)}L ({int(float(le_uc)/20*100)}%)' if le_uc else '-'
 
-        if score_final >= 70: rec = '🔴 DESCARTAR'
-        elif score_final >= 50: rec = '🟠 SECAR ANTICIPADO'
-        elif score_final >= 30: rec = '🟡 CONTROLAR'
-        else: rec = '🟢 OBSERVAR'
-        if reduccion > 0: rec += f' ✦(-{reduccion})'
+        if score_final >= 70: rec = '[ROJO] DESCARTAR'
+        elif score_final >= 50: rec = '[NARANJA] SECAR ANTICIPADO'
+        elif score_final >= 30: rec = '[AMARILLO] CONTROLAR'
+        else: rec = '[VERDE] OBSERVAR'
+        if reduccion > 0: rec += f' *(-{reduccion})'
 
         all_rows.append({'rp':rp,'nro_lact':nro_lact,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
             'primer_ep':primer_ep,'mc_score':mc_score,'rcs_ult':rcs_ult,'rcs_cronico':rcs_cronico,
@@ -810,17 +810,17 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
     ws = wb.create_sheet('Ranking', 1)
 
     ws.merge_cells('A1:T1')
-    ws['A1'] = 'RANKING DE VACAS — ÍNDICE DE RIESGO E IMPACTO ECONÓMICO'
+    ws['A1'] = 'RANKING DE VACAS - INDICE DE RIESGO E IMPACTO ECONOMICO'
     ws['A1'].font = Font(name='Arial', bold=True, color=WHITE, size=13)
     ws['A1'].fill = xfill(BLUE_DARK); ws['A1'].alignment = xcenter()
     ws.row_dimensions[1].height = 28
 
     ws.merge_cells('A2:B2')
-    ws['A2'] = 'PARÁMETROS'; ws['A2'].font = Font(name='Arial', bold=True, size=9, color='555555')
+    ws['A2'] = 'PARAMETROS'; ws['A2'].font = Font(name='Arial', bold=True, size=9, color='555555')
     ws['A2'].fill = xfill('E8E8E8'); ws['A2'].alignment = xcenter()
-    params = [('C2','Prod. prom. tambo (L):','D2',20),('E2','Umbral RCS crónico:','F2',400),
-              ('G2','Meses RCS:','H2',3),('I2','MC crónica (ep.):','J2',3),
-              ('K2','Días descarte x trat.:','L2',6),('M2','Precio litro ($):','N2',300)]
+    params = [('C2','Prod. prom. tambo (L):','D2',20),('E2','Umbral RCS cronico:','F2',400),
+              ('G2','Meses RCS:','H2',3),('I2','MC cronica (ep.):','J2',3),
+              ('K2','Dias descarte x trat.:','L2',6),('M2','Precio litro ($):','N2',300)]
     for lc,lt,vc,vd in params:
         ws[lc]=lt; ws[lc].font=Font(name='Arial',bold=True,size=8)
         ws[lc].alignment=Alignment(horizontal='right',vertical='center')
@@ -829,16 +829,16 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
     ws.row_dimensions[2].height = 22
 
     ws.merge_cells('A3:T3')
-    ws['A3'] = '🔴 DESCARTAR (≥70)   🟠 SECAR ANTICIPADO (50-69)   🟡 CONTROLAR (30-49)   🟢 OBSERVAR (<30)   ✦ Preñada'
+    ws['A3'] = '[ROJO] DESCARTAR (>=70)   [NARANJA] SECAR ANTICIPADO (50-69)   [AMARILLO] CONTROLAR (30-49)   [VERDE] OBSERVAR (<30)   * Prenada'
     ws['A3'].font = Font(name='Arial', size=9, italic=True)
     ws['A3'].fill = xfill('F8F9FA'); ws['A3'].alignment = xcenter()
     ws.row_dimensions[3].height = 18
 
-    sections = [('A4:C4','IDENTIFICACIÓN',BLUE_DARK),('D4:H4','MASTITIS CLÍNICA','6E2F1A'),
-                ('I4:L4','RCS','1A6E3A'),('M4:M4','PRODUCCIÓN','1A4F6E'),
-                ('N4:N4','PATÓGENO / OBS.',PURPLE),('O4:O4','PREÑEZ',TEAL),
-                ('P4:Q4','PUNTAJE','2C3E50'),('R4:R4','RECOMENDACIÓN','922B21'),
-                ('S4:T4','IMPACTO ECONÓMICO','1B4F72')]
+    sections = [('A4:C4','IDENTIFICACION',BLUE_DARK),('D4:H4','MASTITIS CLINICA','6E2F1A'),
+                ('I4:L4','RCS','1A6E3A'),('M4:M4','PRODUCCION','1A4F6E'),
+                ('N4:N4','PATOGENO / OBS.',PURPLE),('O4:O4','PRENEZ',TEAL),
+                ('P4:Q4','PUNTAJE','2C3E50'),('R4:R4','RECOMENDACION','922B21'),
+                ('S4:T4','IMPACTO ECONOMICO','1B4F72')]
     for rng,label,color in sections:
         ws.merge_cells(rng); c=ws[rng.split(':')[0]]
         c.value=label; c.font=xhdr(8); c.fill=xfill(color); c.alignment=xcenter()
@@ -864,10 +864,10 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
 
     for i,d in enumerate(all_rows):
         r=i+6; bg=GREY if r%2==0 else WHITE
-        pct_str = f'{d["pct_aporte"]:.2f}%' if d['pct_aporte']>0 else '—'
+        pct_str = f'{d["pct_aporte"]:.2f}%' if d['pct_aporte']>0 else '-'
         row_vals=[d['rp'],d['nro_lact'],'',
             d['mc_act'],d['mc_ant'],d['mc_total'],d['primer_ep'],d['mc_score'],
-            d['rcs_ult'],'✓' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
+            d['rcs_ult'],'OK' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
             d['prod_vs'],d['pat_label'],d['prox_sec'],
             d['score_bruto'],d['score_final'],d['rec'],
             d['litros_desc'],int(d['perdida']) if d['perdida'] else 0]
@@ -882,9 +882,9 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
             elif sc_val>=30: sc.fill=xfill('F4D03F'); sc.font=Font(name='Arial',bold=True,color='000000',size=9)
             else: sc.fill=xfill(GREEN_LT); sc.font=Font(name='Arial',bold=True,color=GREEN,size=9)
         rc=ws.cell(r,18)
-        if '🔴' in str(d['rec']): rc.fill=xfill(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9)
-        elif '🟠' in str(d['rec']): rc.fill=xfill(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9)
-        elif '🟡' in str(d['rec']): rc.fill=xfill(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9)
+        if '[ROJO]' in str(d['rec']): rc.fill=xfill(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif '[NARANJA]' in str(d['rec']): rc.fill=xfill(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        elif '[AMARILLO]' in str(d['rec']): rc.fill=xfill(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9)
         else: rc.fill=xfill(GREEN_LT); rc.font=Font(name='Arial',bold=True,color=GREEN,size=9)
         if d['rcs_cronico']:
             ws.cell(r,10).fill=xfill(RED_LT); ws.cell(r,10).font=Font(name='Arial',bold=True,color=RED,size=9)
@@ -912,7 +912,7 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
         total_perdida+=d['perdida']
 
     ws.merge_cells('O2:T2')
-    ws['O2']=f"Total: {len(all_rows)}   🔴{cats['DESCARTAR']}   🟠{cats['SECAR']}   🟡{cats['CONTROLAR']}   🟢{cats['OBSERVAR']}   |   Pérdida est.: $" + f"{int(total_perdida):,}"
+    ws['O2']=f"Total: {len(all_rows)}   [ROJO]{cats['DESCARTAR']}   [NARANJA]{cats['SECAR']}   [AMARILLO]{cats['CONTROLAR']}   [VERDE]{cats['OBSERVAR']}   |   Perdida est.: $" + f"{int(total_perdida):,}"
     ws['O2'].font=Font(name='Arial',bold=True,size=9)
     ws['O2'].fill=xfill('E8E8E8'); ws['O2'].alignment=xcenter()
 `;
