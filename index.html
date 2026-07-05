@@ -844,12 +844,12 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
         c.value=label; c.font=xhdr(8); c.fill=xfill(color); c.alignment=xcenter()
     ws.row_dimensions[4].height = 20
 
-    headers = ['RP','Lact.','—',
-        'MC\nLact.Act.','MC\nLact.Ant.','MC\nTotal','Días\n1er Ep.','Ptos\nMC',
-        'RCS\nÚlt.Ctrl.','RCS\nCrónico','% Aporte\nTanque','Ptos\nRCS',
-        'Le.UC\nvs Prom.','Patógeno / Obs.','Prox.Secado\n(preñez)',
-        'Score\nBruto','Score\nFinal','RECOMENDACIÓN',
-        'Litros\nDescart.','Pérdida\nestimada ($)']
+    headers = ['RP','Lact.','Est.',
+        'MC\nLact.Act.','MC\nLact.Ant.','MC\nTotal','Dias\n1er Ep.','Ptos\nMC',
+        'RCS\nUlt.Ctrl.','RCS\nCronico','% Aporte\nTanque','Ptos\nRCS',
+        'Le.UC\nvs Prom.','Patogeno / Obs.','Prox.Secado\n(prenez)',
+        'Score\nBruto','Score\nFinal','RECOMENDACION',
+        'Litros\nDescart.','Perdida\nestimada ($)']
     col_fills_h = [BLUE_DARK,BLUE_DARK,BLUE_DARK,
         '8B3626','8B3626','8B3626','8B3626','8B3626',
         '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
@@ -918,4 +918,4 @@ def recalcular_ranking(wb, ws_info, header_row, data_start, cols):
 `;
 </script>
 </body>
-</html>
+</htm
