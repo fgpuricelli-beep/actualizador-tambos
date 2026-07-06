@@ -602,8 +602,10 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
             for c in range(1,ws.max_column+1):
                 ws_b.cell(next_row,c).value=ws.cell(r,c).value
             next_row+=1
-        for rp in baja_rps:
-            ws.delete_rows(db_rows[rp])
+        # Delete in reverse row order to avoid index shifting
+        rows_to_delete = sorted([db_rows[rp] for rp in baja_rps], reverse=True)
+        for r in rows_to_delete:
+            ws.delete_rows(r)
 
     if new_rps:
         last_row=header_row
