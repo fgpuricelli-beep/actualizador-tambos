@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Ranking - Tambos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+  :root{--bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3050;--accent:#4f8ef7;--accent2:#38d9a9;--danger:#ff6b6b;--warn:#ffa94d;--text:#e8eaf2;--text2:#8892b0;--text3:#4a5580}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;padding:40px 20px}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0}
+  .container{max-width:720px;margin:0 auto;position:relative;z-index:1}
+  .header{margin-bottom:40px}
+  .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .header-tag::before{content:'';width:24px;height:1px;background:var(--accent)}
+  h1{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-bottom:10px}
+  h1 span{color:var(--accent)}
+  .subtitle{color:var(--text2);font-size:14px;font-weight:300;line-height:1.6}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;transition:border-color .2s}
+  .card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 32px rgba(79,142,247,.08)}
+  .card.done{border-color:var(--accent2)}
+  .card-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .step-num{width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;color:var(--text2);flex-shrink:0}
+  .card.done .step-num{background:var(--accent2);border-color:var(--accent2);color:#0f1117;font-weight:700}
+  .card-title{font-size:15px;font-weight:600}
+  .card-desc{font-size:12px;color:var(--text2);font-weight:300;margin-top:2px}
+  .drop-zone{border:1.5px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative}
+  .drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.05)}
+  .drop-zone.loaded{border-color:var(--accent2);border-style:solid;background:rgba(56,217,169,.05)}
+  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .drop-icon{font-size:28px;margin-bottom:8px}
+  .drop-label{font-size:13px;color:var(--text2)}
+  .drop-label strong{color:var(--accent)}
+  .drop-label.success{color:var(--accent2)}
+  .drop-ext{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:4px}
+  .info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px;display:none}
+  .info-box.visible{display:block}
+  .info-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
+  .info-row:last-child{border-bottom:none}
+  .info-label{color:var(--text2);font-family:'DM Mono',monospace}
+  .info-val{color:var(--text);font-weight:600}
+  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px}
+  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,142,247,.3)}
+  .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .result-box{background:var(--surface);border:1px solid var(--accent2);border-radius:12px;padding:28px;margin-top:20px;display:none}
+  .result-box.visible{display:block}
+  .result-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:16px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+  .stat{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+  .stat-num{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;margin-bottom:4px}
+  .stat-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+  .btn-dl{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-dl:hover{background:rgba(56,217,169,.1)}
+  .error-box{background:rgba(255,107,107,.08);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:13px;color:var(--danger);margin-top:12px;display:none}
+  .error-box.visible{display:block}
+  .py-status{text-align:center;padding:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px;margin-bottom:20px}
+  .py-status.ready{color:var(--accent2)}.py-status.loading{color:var(--warn)}.py-status.error{color:var(--danger)}
+  .divider{height:1px;background:var(--border);margin:16px 0}
+  .perdida{font-family:'DM Mono',monospace;font-size:12px;color:var(--warn);text-align:center;margin-top:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-tag">Sistema de Gestion</div>
+    <h1>Generador de<br><span>Ranking de Vacas</span></h1>
+    <p class="subtitle">Subi la base de datos actualizada y genera el ranking de riesgo con puntaje, recomendacion e impacto economico para cada vaca.</p>
+  </div>
+
+  <div class="py-status loading" id="py-status">Cargando motor Python... (puede tardar ~30 segundos la primera vez)</div>
+
+  <div class="card active" id="card1">
+    <div class="card-header">
+      <div class="step-num" id="num1">1</div>
+      <div><div class="card-title">Base de datos del tambo</div><div class="card-desc">Excel con los datos actualizados del ultimo control lechero</div></div>
+    </div>
+    <div class="drop-zone" id="drop-excel">
+      <input type="file" id="file-excel" accept=".xlsx,.xls" onchange="handleExcel(this)">
+      <div class="drop-icon">📊</div>
+      <div class="drop-label" id="label-excel">Hace clic o arrastra el <strong>Excel</strong> aca</div>
+      <div class="drop-ext">.xlsx</div>
+    </div>
+    <div class="info-box" id="info-excel">
+      <div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="excel-name">--</span></div>
+      <div class="info-row"><span class="info-label">Vacas en base</span><span class="info-val" id="excel-cows">--</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="card2">
+    <div class="card-header">
+      <div class="step-num" id="num2">2</div>
+      <div><div class="card-title">Generar Ranking</div><div class="card-desc">Calcula el indice de riesgo y recomienda accion para cada vaca</div></div>
+    </div>
+    <button class="btn-run" id="btn-run" disabled onclick="runRanking()">
+      <span id="btn-text">Generar Ranking</span>
+    </button>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <div class="result-box" id="result-box">
+    <div class="result-title">Ranking generado correctamente</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-num" style="color:#ff6b6b" id="stat-d">0</div><div class="stat-label">Descartar</div></div>
+      <div class="stat"><div class="stat-num" style="color:#ffa94d" id="stat-s">0</div><div class="stat-label">Secar Antic.</div></div>
+      <div class="stat"><div class="stat-num" style="color:#f4d03f" id="stat-c">0</div><div class="stat-label">Controlar</div></div>
+      <div class="stat"><div class="stat-num" style="color:#38d9a9" id="stat-o">0</div><div class="stat-label">Observar</div></div>
+    </div>
+    <div class="perdida" id="perdida-text"></div>
+    <div class="divider"></div>
+    <button class="btn-dl" onclick="downloadResult()">Descargar Excel con Ranking</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+let pyodide = null;
+let pyReady = false;
+let excelBytes = null;
+let resultBytes = null;
+
+const PYTHON_CODE = `
+import io, datetime, re
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300):
+    excel_data = bytes(excel_data)
+    wb = load_workbook(io.BytesIO(excel_data))
+    ws_info = wb[wb.sheetnames[0]]
+
+    header_row = 5
+    for r in range(1, 11):
+        if str(ws_info.cell(r,1).value or '').strip() == 'RP':
+            header_row = r; break
+    data_start = header_row + 1
+
+    mc_col_dates = {}
+    for c in range(2, ws_info.max_column+1):
+        v = ws_info.cell(header_row, c).value
+        if isinstance(v, datetime.datetime): mc_col_dates[c] = v.date()
+        elif mc_col_dates: break
+
+    target = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA','Prox.Secado','Estado','Est.Actual','Tambo'}
+    anchor_col = None
+    for c in range(2, ws_info.max_column+1):
+        v = ws_info.cell(header_row, c).value
+        if v and str(v).strip() == 'Est.Actual': anchor_col = c; break
+    found = {}
+    if anchor_col:
+        lo, hi = max(2, anchor_col-15), min(ws_info.max_column, anchor_col+5)
+        for c in range(lo, hi+1):
+            v = ws_info.cell(header_row, c).value
+            if v and str(v).strip() in target and str(v).strip() not in found:
+                found[str(v).strip()] = c
+
+    mc_max = max(mc_col_dates.keys()) if mc_col_dates else 0
+    summary_min = min(found.values()) if found else ws_info.max_column
+    rcs_col_dates = {}
+    for c in range(mc_max+2, summary_min):
+        v = ws_info.cell(header_row, c).value
+        if isinstance(v, datetime.datetime): rcs_col_dates[c] = v.date()
+
+    obs_col = None
+    for c in range(mc_max+1, summary_min):
+        v = ws_info.cell(header_row, c).value
+        if v and str(v).strip().lower() == 'observaciones': obs_col = c; break
+
+    def count_mc(cell):
+        count = 0
+        if cell.value is not None: count += 1
+        if cell.comment and cell.comment.text:
+            parts = [p.strip() for p in cell.comment.text.replace('Otros episodios:','').split('|') if re.search(r'\\d{1,2}/\\d{1,2}', p)]
+            if parts: count += len(parts)
+        return count
+
+    def score_obs(obs_text):
+        if not obs_text: return 0, ''
+        obs = str(obs_text).lower()
+        score = 0; labels = []
+        if 'my +' in obs or 'my+' in obs: score += 30; labels.append('Mycoplasma +')
+        elif 'my -' in obs or 'my-' in obs: score += 5; labels.append('Mycoplasma -')
+        if re.search(r'(?<!\\d)2(?!\\d)', obs): score += 25; labels.append('Staph. aureus')
+        if '4ub' in obs: score += 15; labels.append('Strep. uberis')
+        if re.search(r'(?<!\\d)5(?!\\d)', obs): score += 10; labels.append('Staph. sp.')
+        if re.search(r'(?<!\\d)7(?!\\d)', obs): score += 5; labels.append('Coliformes')
+        if 'ui' in obs: score += 8; labels.append('UI')
+        return min(score, 30), ', '.join(labels)
+
+    today = datetime.date.today()
+    all_rows = []
+
+    for info_row in range(data_start, ws_info.max_row+1):
+        rp = ws_info.cell(info_row, 1).value
+        if rp is None: continue
+        ini_lact_raw = ws_info.cell(info_row, 2).value
+        ini_lact = ini_lact_raw.date() if isinstance(ini_lact_raw, datetime.datetime) else ini_lact_raw
+        nro_lact = ws_info.cell(info_row, found.get('Nro.Lact',0)).value if found.get('Nro.Lact') else None
+        dias_acu = ws_info.cell(info_row, found.get('Dias ACU',0)).value if found.get('Dias ACU') else None
+        le_uc = ws_info.cell(info_row, found.get('Le.UC',0)).value if found.get('Le.UC') else None
+        re_uc = ws_info.cell(info_row, found.get('Re.UC',0)).value if found.get('Re.UC') else None
+        prox_sec_raw = ws_info.cell(info_row, found.get('Prox.Secado',0)).value if found.get('Prox.Secado') else None
+        prox_sec = prox_sec_raw.date() if isinstance(prox_sec_raw, datetime.datetime) else prox_sec_raw
+        obs = ws_info.cell(info_row, obs_col).value if obs_col else None
+        mc_act = 0; mc_ant = 0; primer_ep = None
+        for col, col_date in mc_col_dates.items():
+            cell = ws_info.cell(info_row, col)
+            if cell.value is None and (not cell.comment or not cell.comment.text): continue
+            ev_date = cell.value.date() if isinstance(cell.value, datetime.datetime) else (cell.value if isinstance(cell.value, datetime.date) else col_date)
+            n = count_mc(cell)
+            if ini_lact and ev_date >= ini_lact:
+                mc_act += n
+                if primer_ep is None: primer_ep = (ev_date - ini_lact).days
+            elif ini_lact:
+                mc_ant += n
+        mc_total = mc_act + mc_ant
+        rcs_vals = []
+        for c in sorted(rcs_col_dates.keys()):
+            v = ws_info.cell(info_row, c).value
+            try: rcs_vals.append(float(v) if v is not None else None)
+            except: rcs_vals.append(None)
+        rcs_ult = None
+        try: rcs_ult = float(re_uc) if re_uc is not None else None
+        except: pass
+        if rcs_ult is None:
+            for v in reversed(rcs_vals):
+                if v is not None: rcs_ult = v; break
+        rcs_cronico = False; consec = 0
+        for v in rcs_vals[-8:]:
+            if v is not None and v > umbral_rcs:
+                consec += 1
+                if consec >= meses_rcs: rcs_cronico = True; break
+            elif v is not None: consec = 0
+        rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
+        mc_score = 0
+        if mc_act >= 4: mc_score = 35
+        elif mc_act == 3: mc_score = 28
+        elif mc_act == 2: mc_score = 15
+        elif mc_act == 1: mc_score = 8
+        if mc_ant >= 3: mc_score = min(mc_score+12, 35)
+        elif mc_ant == 2: mc_score = min(mc_score+8, 35)
+        elif mc_ant == 1: mc_score = min(mc_score+4, 35)
+        rcs_score = 0
+        if rcs_ult:
+            if rcs_ult > 1000: rcs_score = 20
+            elif rcs_ult > umbral_rcs: rcs_score = 12
+            elif rcs_ult > 200: rcs_score = 5
+        if rcs_cronico: rcs_score = min(rcs_score+10, 30)
+        pat_score, pat_label = score_obs(obs)
+        lact_score = 5 if (nro_lact and nro_lact>=5) else (3 if (nro_lact and nro_lact>=3) else 0)
+        score_bruto = mc_score + rcs_score + pat_score + lact_score
+        prenez_days = (prox_sec - today).days if (prox_sec and isinstance(prox_sec, datetime.date)) else None
+        reduccion = 15 if (prenez_days and 0<prenez_days<=60) else (8 if (prenez_days and prenez_days<=120) else (3 if (prenez_days and prenez_days>120) else 0))
+        score_final = max(0, score_bruto - reduccion)
+        litros_dia = (float(le_uc)/30) if le_uc else 0
+        litros_desc = round(mc_total*6*litros_dia, 1)
+        perdida = round(litros_desc*precio_litro, 0)
+        prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
+        if score_final >= 70: rec = 'DESCARTAR'
+        elif score_final >= 50: rec = 'SECAR ANTICIPADO'
+        elif score_final >= 30: rec = 'CONTROLAR'
+        else: rec = 'OBSERVAR'
+        if reduccion > 0: rec += ' (prenez -' + str(reduccion) + ')'
+        all_rows.append({'rp':rp,'nro_lact':nro_lact,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
+            'primer_ep':primer_ep,'mc_score':mc_score,'rcs_ult':rcs_ult,'rcs_cronico':rcs_cronico,
+            'rcs_score':rcs_score,'rcs_aporte':rcs_aporte,'prod_vs':prod_vs,'pat_label':pat_label,
+            'prox_sec':prox_sec,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
+            'litros_desc':litros_desc,'perdida':perdida,'dias_acu':dias_acu,'reduccion':reduccion})
+
+    total_cs = sum(d['rcs_aporte'] for d in all_rows)
+    for d in all_rows:
+        d['pct_aporte'] = round(d['rcs_aporte']/total_cs*100, 2) if total_cs > 0 else 0
+    all_rows.sort(key=lambda x: x['score_final'], reverse=True)
+
+    BLUE='1F4E78'; WHITE='FFFFFF'; RED='C0392B'; RED_LT='FADBD8'
+    ORANGE='E67E22'; ORANGE_LT='FDEBD0'; YELLOW='F9E79F'
+    GREEN='1E8449'; GREEN_LT='D5F5E3'; GREY='F2F3F4'; PURPLE='6C3483'; TEAL='117A65'
+    def xf(c): return PatternFill('solid', fgColor=c)
+    def xb():
+        s=Side(style='thin',color='CCCCCC')
+        return Border(left=s,right=s,top=s,bottom=s)
+    def xc(): return Alignment(horizontal='center',vertical='center',wrap_text=True)
+    def xl(): return Alignment(horizontal='left',vertical='center',wrap_text=True)
+    def xh(s=9): return Font(name='Arial',bold=True,color=WHITE,size=s)
+    def xfont(bold=False,color='000000',size=9): return Font(name='Arial',bold=bold,color=color,size=size)
+
+    if 'Ranking' in wb.sheetnames: del wb['Ranking']
+    ws = wb.create_sheet('Ranking', 1)
+
+    ws.merge_cells('A1:T1')
+    ws['A1'] = 'RANKING DE VACAS - INDICE DE RIESGO E IMPACTO ECONOMICO'
+    ws['A1'].font=Font(name='Arial',bold=True,color=WHITE,size=13); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc()
+    ws.row_dimensions[1].height=28
+
+    ws.merge_cells('A2:B2')
+    ws['A2']='PARAMETROS'; ws['A2'].font=Font(name='Arial',bold=True,size=9,color='555555')
+    ws['A2'].fill=xf('E8E8E8'); ws['A2'].alignment=xc()
+    params=[('C2','Prod. prom. tambo (L):','D2',prom_prod),('E2','Umbral RCS:','F2',umbral_rcs),
+            ('G2','Meses RCS:','H2',meses_rcs),('I2','MC cronica:','J2',3),
+            ('K2','Dias descarte:','L2',6),('M2','Precio litro ($):','N2',precio_litro)]
+    for lc,lt,vc,vd in params:
+        ws[lc]=lt; ws[lc].font=Font(name='Arial',bold=True,size=8); ws[lc].alignment=Alignment(horizontal='right',vertical='center')
+        ws[vc]=vd; ws[vc].font=Font(name='Arial',bold=True,size=10,color='1F4E78')
+        ws[vc].fill=xf('FFF9C4'); ws[vc].border=xb(); ws[vc].alignment=xc()
+    ws.row_dimensions[2].height=22
+
+    ws.merge_cells('A3:T3')
+    ws['A3']='DESCARTAR (>=70)   SECAR ANTICIPADO (50-69)   CONTROLAR (30-49)   OBSERVAR (<30)'
+    ws['A3'].font=Font(name='Arial',size=9,italic=True); ws['A3'].fill=xf('F8F9FA'); ws['A3'].alignment=xc()
+    ws.row_dimensions[3].height=18
+
+    sections=[('A4:C4','IDENTIFICACION',BLUE),('D4:H4','MASTITIS CLINICA','6E2F1A'),
+              ('I4:L4','RCS','1A6E3A'),('M4:M4','PRODUCCION','1A4F6E'),
+              ('N4:N4','PATOGENO',PURPLE),('O4:O4','PRENEZ',TEAL),
+              ('P4:Q4','PUNTAJE','2C3E50'),('R4:R4','RECOMENDACION','922B21'),
+              ('S4:T4','IMPACTO ECONOMICO','1B4F72')]
+    for rng,label,color in sections:
+        ws.merge_cells(rng); c=ws[rng.split(':')[0]]
+        c.value=label; c.font=xh(8); c.fill=xf(color); c.alignment=xc()
+    ws.row_dimensions[4].height=20
+
+    headers=['RP','Lact.','Est.','MC\nLact.Act.','MC\nLact.Ant.','MC\nTotal','Dias\n1er Ep.',
+             'Ptos\nMC','RCS\nUlt.Ctrl.','RCS\nCronico','% Aporte\nTanque','Ptos\nRCS',
+             'Le.UC\nvs Prom.','Patogeno','Prox.Sec\n(prenez)','Score\nBruto','Score\nFinal',
+             'RECOMENDACION','Litros\nDescart.','Perdida\n($)']
+    hcols=[BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
+           '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
+           '2C3E50','2C3E50','922B21','1B4F72','1B4F72']
+    for i,(h,fc) in enumerate(zip(headers,hcols)):
+        c=ws.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
+    ws.row_dimensions[5].height=36
+
+    widths=[9,6,6,8,8,7,9,7,11,9,9,7,11,16,11,7,7,22,10,12]
+    for i,w in enumerate(widths):
+        ws.column_dimensions[get_column_letter(i+1)].width=w
+
+    cats={'DESCARTAR':0,'SECAR':0,'CONTROLAR':0,'OBSERVAR':0}
+    total_perdida=0
+
+    for i,d in enumerate(all_rows):
+        r=i+6; bg=GREY if r%2==0 else WHITE
+        pct_str=str(d['pct_aporte'])+'%' if d['pct_aporte']>0 else '--'
+        row_vals=[d['rp'],d['nro_lact'],'',d['mc_act'],d['mc_ant'],d['mc_total'],
+                  d['primer_ep'],d['mc_score'],d['rcs_ult'],'Si' if d['rcs_cronico'] else '',
+                  pct_str,d['rcs_score'],d['prod_vs'],d['pat_label'],d['prox_sec'],
+                  d['score_bruto'],d['score_final'],d['rec'],
+                  d['litros_desc'],int(d['perdida']) if d['perdida'] else 0]
+        for ci,val in enumerate(row_vals,1):
+            c=ws.cell(r,ci,val); c.font=xfont(size=9)
+            c.alignment=xc() if ci!=18 else xl()
+            c.border=xb(); c.fill=xf(bg)
+        for sc,sv in [(16,d['score_bruto']),(17,d['score_final'])]:
+            sc_c=ws.cell(r,sc)
+            if sv>=70: sc_c.fill=xf(RED); sc_c.font=Font(name='Arial',bold=True,color=WHITE,size=9)
+            elif sv>=50: sc_c.fill=xf(ORANGE); sc_c.font=Font(name='Arial',bold=True,color=WHITE,size=9)
+            elif sv>=30: sc_c.fill=xf('F4D03F'); sc_c.font=Font(name='Arial',bold=True,color='000000',size=9)
+            else: sc_c.fill=xf(GREEN_LT); sc_c.font=Font(name='Arial',bold=True,color=GREEN,size=9)
+        rc=ws.cell(r,18); rec_str=d['rec']
+        if 'DESCARTAR' in rec_str: rc.fill=xf(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9); cats['DESCARTAR']+=1
+        elif 'SECAR' in rec_str: rc.fill=xf(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9); cats['SECAR']+=1
+        elif 'CONTROLAR' in rec_str: rc.fill=xf(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9); cats['CONTROLAR']+=1
+        else: rc.fill=xf(GREEN_LT); rc.font=Font(name='Arial',bold=True,color=GREEN,size=9); cats['OBSERVAR']+=1
+        if d['rcs_cronico']:
+            ws.cell(r,10).fill=xf(RED_LT); ws.cell(r,10).font=Font(name='Arial',bold=True,color=RED,size=9)
+        if d['reduccion']>0:
+            ws.cell(r,15).fill=xf(GREEN_LT); ws.cell(r,15).font=Font(name='Arial',bold=True,color=GREEN,size=9)
+        if d['pct_aporte']>5:
+            ws.cell(r,11).fill=xf(RED_LT); ws.cell(r,11).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif d['pct_aporte']>2:
+            ws.cell(r,11).fill=xf(ORANGE_LT); ws.cell(r,11).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        if d['perdida']>100000:
+            ws.cell(r,20).fill=xf(RED_LT); ws.cell(r,20).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif d['perdida']>50000:
+            ws.cell(r,20).fill=xf(ORANGE_LT); ws.cell(r,20).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        ws.row_dimensions[r].height=15
+        total_perdida+=d['perdida']
+
+    ws.freeze_panes='A6'
+    ws.merge_cells('O2:T2')
+    perdida_str=str(int(total_perdida))
+    ws['O2']='Total: '+str(len(all_rows))+'   DESCARTAR:'+str(cats['DESCARTAR'])+'   SECAR:'+str(cats['SECAR'])+'   CONTROLAR:'+str(cats['CONTROLAR'])+'   OBSERVAR:'+str(cats['OBSERVAR'])+'   Perdida: $'+perdida_str
+    ws['O2'].font=Font(name='Arial',bold=True,size=9); ws['O2'].fill=xf('E8E8E8'); ws['O2'].alignment=xc()
+
+    out=io.BytesIO()
+    wb.save(out); out.seek(0)
+    return out.read(), cats, int(total_perdida), len(all_rows)
+`;
+
+(async function() {
+  const status = document.getElementById('py-status');
+  try {
+    pyodide = await loadPyodide();
+    status.textContent = 'Instalando openpyxl...';
+    await pyodide.loadPackage('micropip');
+    await pyodide.runPythonAsync('import micropip\nawait micropip.install("openpyxl")');
+    await pyodide.runPythonAsync(PYTHON_CODE);
+    pyReady = true;
+    status.textContent = 'Motor Python listo';
+    status.className = 'py-status ready';
+    checkReady();
+  } catch(e) {
+    status.textContent = 'Error cargando Python: ' + e.message;
+    status.className = 'py-status error';
+  }
+})();
+
+function readAsArrayBuffer(file) {
+  return new Promise((res,rej) => { const r=new FileReader(); r.onload=e=>res(new Uint8Array(e.target.result)); r.onerror=rej; r.readAsArrayBuffer(file); });
+}
+
+async function handleExcel(input) {
+  const file = input.files[0]; if(!file) return;
+  excelBytes = await readAsArrayBuffer(file);
+  document.getElementById('excel-name').textContent = file.name;
+  document.getElementById('excel-cows').textContent = 'Listo para procesar';
+  document.getElementById('info-excel').classList.add('visible');
+  document.getElementById('drop-excel').classList.add('loaded');
+  document.getElementById('label-excel').innerHTML = '<span class="success">Archivo cargado: <strong>' + file.name + '</strong></span>';
+  document.getElementById('num1').textContent = '✓';
+  document.getElementById('card1').classList.add('done');
+  document.getElementById('card2').classList.add('active');
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('btn-run').disabled = !(pyReady && excelBytes);
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg; el.classList.add('visible');
+}
+
+async function runRanking() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('btn-text').innerHTML = '<div class="spinner"></div> Calculando ranking...';
+  document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('result-box').classList.remove('visible');
+
+  try {
+    pyodide.globals.set('excel_data_js', excelBytes);
+    const resultJson = await pyodide.runPythonAsync(`
+import json
+result_bytes_py, cats_py, perdida_py, total_py = generar_ranking(excel_data_js)
+json.dumps({'cats': cats_py, 'perdida': perdida_py, 'total': total_py})
+`);
+    const info = JSON.parse(resultJson);
+    const rb = pyodide.globals.get('result_bytes_py');
+    resultBytes = new Uint8Array(rb.toJs ? rb.toJs() : rb);
+
+    document.getElementById('stat-d').textContent = info.cats.DESCARTAR;
+    document.getElementById('stat-s').textContent = info.cats.SECAR;
+    document.getElementById('stat-c').textContent = info.cats.CONTROLAR;
+    document.getElementById('stat-o').textContent = info.cats.OBSERVAR;
+    document.getElementById('perdida-text').textContent = 'Perdida estimada total por leche descartada: $' + info.perdida.toLocaleString();
+
+    document.getElementById('result-box').classList.add('visible');
+    document.getElementById('num2').textContent = '✓';
+    document.getElementById('card2').classList.add('done');
+    document.getElementById('btn-text').textContent = 'Ranking generado';
+  } catch(e) {
+    showError('Error: ' + e.message);
+    document.getElementById('btn-text').textContent = 'Generar Ranking';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function downloadResult() {
+  if(!resultBytes) return;
+  const blob = new Blob([resultBytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='ranking.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('drop-excel').addEventListener('dragover', e=>{e.preventDefault();document.getElementById('drop-excel').classList.add('dragover');});
+document.getElementById('drop-excel').addEventListener('dragleave', ()=>document.getElementById('drop-excel').classList.remove('dragover'));
+document.getElementById('drop-excel').addEventListener('drop', e=>{
+  e.preventDefault(); document.getElementById('drop-excel').classList.remove('dragover');
+  const file=e.dataTransfer.files[0]; if(!file) return;
+  const inp=document.getElementById('file-excel');
+  const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files;
+  handleExcel(inp);
+});
+</script>
+</body>
+</html>
