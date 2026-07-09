@@ -322,10 +322,12 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         c.value=label; c.font=xh(8); c.fill=xf(color); c.alignment=xc()
     ws.row_dimensions[4].height=20
 
-    headers=['RP','Lact.','Est.','MC\nLact.Act.','MC\nLact.Ant.','MC\nTotal','Dias\n1er Ep.',
-             'Ptos\nMC','RCS\nUlt.Ctrl.','RCS\nCronico','% Aporte\nTanque','Ptos\nRCS',
-             'Le.UC\nvs Prom.','Patogeno','Prox.Sec\n(prenez)','Score\nBruto','Score\nFinal',
-             'RECOMENDACION','Litros\nDescart.','Perdida\n($)']
+    NL = chr(10)
+    headers=['RP','Lact.','Est.',
+             'MC'+NL+'Lact.Act.','MC'+NL+'Lact.Ant.','MC'+NL+'Total','Dias'+NL+'1er Ep.',
+             'Ptos'+NL+'MC','RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','% Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
+             'Le.UC'+NL+'vs Prom.','Patogeno','Prox.Sec'+NL+'(prenez)','Score'+NL+'Bruto','Score'+NL+'Final',
+             'RECOMENDACION','Litros'+NL+'Descart.','Perdida'+NL+'($)']
     hcols=[BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
            '2C3E50','2C3E50','922B21','1B4F72','1B4F72']
