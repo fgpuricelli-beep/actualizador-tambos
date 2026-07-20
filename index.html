@@ -355,7 +355,7 @@ def find_header_row(ws):
 
 def find_columns(ws, header_row):
     target_names = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA',
-                     'Prox.Secado','Estado','Est.Actual','Tambo'}
+                     'Prox.Secado','Estado','Est.Actual','Tambo','Le.ACU'}
 
     # Find the summary block by locating "Est.Actual" (most distinctive header,
     # only ever appears once, in the summary section) or "Tambo" as anchors,
@@ -428,6 +428,7 @@ def find_columns(ws, header_row):
         'estado': found.get('Estado'),
         'est_actual': found.get('Est.Actual'),
         'tambo': found.get('Tambo'),
+        'le_acu': found.get('Le.ACU'),
         'mc_cols': mc_cols,
     }
 
@@ -493,7 +494,8 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
             'LeUC':clean_num(row.get('Le.UC')),'ReUC':clean_num(row.get('Re.UC')),
             'LeCA':clean_num(row.get('Le.CA')),'ReCA':clean_num(row.get('Re.CA')),
             'ProxSecado':clean_date(row.get('Prox.Secado')),
-            'DiasACU':clean_num(row.get('Dias ACU')),'Tambo':row.get('Tambo','')}
+            'DiasACU':clean_num(row.get('Dias ACU')),'Tambo':row.get('Tambo',''),
+            'LeACU':clean_num(row.get('Le.ACU'))}
         csv_map_display[rp] = str(row.get('RP','')).strip()
 
     updated = 0
@@ -513,6 +515,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         if cols['prox_secado']: ws.cell(r,cols['prox_secado']).value=d['ProxSecado']
         if cols['estado']: ws.cell(r,cols['estado']).value=d['Estado']
         if cols['est_actual']: ws.cell(r,cols['est_actual']).value=d['EstActual']
+        if cols['le_acu']: ws.cell(r,cols['le_acu']).value=d['LeACU']
         if cols['tambo']: ws.cell(r,cols['tambo']).value=d['Tambo']
         updated+=1
 
@@ -584,8 +587,13 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
                 mc_count += len(sorted_dates)
 
     csv_rps=set(csv_map.keys())
+    # All RPs in the full CSV (all tambos) to avoid marking cows from other tambos as bajas
+    all_csv_rps=set()
+    for row in csv_rows:
+        rp=normalize_rp(row.get('RP',''))
+        if rp: all_csv_rps.add(rp)
     new_rps=sorted(csv_rps-db_rps)
-    baja_rps=sorted(db_rps-csv_rps)
+    baja_rps=sorted(db_rps-all_csv_rps)  # only cows absent from ALL tambos in CSV
 
     if baja_rps:
         if 'Bajas' not in wb.sheetnames:
@@ -629,6 +637,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
             if cols['prox_secado']: ws.cell(new_row,cols['prox_secado']).value=d['ProxSecado']
             if cols['estado']: ws.cell(new_row,cols['estado']).value=d['Estado']
             if cols['est_actual']: ws.cell(new_row,cols['est_actual']).value=d['EstActual']
+            if cols['le_acu']: ws.cell(new_row,cols['le_acu']).value=d['LeACU']
             if cols['tambo']: ws.cell(new_row,cols['tambo']).value=d['Tambo']
             new_row+=1
 
