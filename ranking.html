@@ -32,24 +32,28 @@
   .drop-icon{font-size:28px;margin-bottom:8px}
   .drop-label{font-size:13px;color:var(--text2)}
   .drop-label strong{color:var(--accent)}
-  .drop-label.success{color:var(--accent2)}
-  .drop-ext{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:4px}
   .info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px;display:none}
   .info-box.visible{display:block}
   .info-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
   .info-row:last-child{border-bottom:none}
   .info-label{color:var(--text2);font-family:'DM Mono',monospace}
   .info-val{color:var(--text);font-weight:600}
-  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px}
-  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,142,247,.3)}
+  .params-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .param-item{display:flex;flex-direction:column;gap:6px}
+  .param-item label{font-size:12px;color:var(--text2);font-weight:400}
+  .param-item input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;font-weight:600;outline:none;transition:border-color .2s}
+  .param-item input:focus{border-color:var(--accent)}
+  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
+  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px)}
   .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
   .result-box{background:var(--surface);border:1px solid var(--accent2);border-radius:12px;padding:28px;margin-top:20px;display:none}
   .result-box.visible{display:block}
   .result-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:16px}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
   .stat{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
   .stat-num{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;margin-bottom:4px}
   .stat-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+  .perdidas{font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:16px;line-height:1.8}
   .btn-dl{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
   .btn-dl:hover{background:rgba(56,217,169,.1)}
   .error-box{background:rgba(255,107,107,.08);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:13px;color:var(--danger);margin-top:12px;display:none}
@@ -57,7 +61,6 @@
   .py-status{text-align:center;padding:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px;margin-bottom:20px}
   .py-status.ready{color:var(--accent2)}.py-status.loading{color:var(--warn)}.py-status.error{color:var(--danger)}
   .divider{height:1px;background:var(--border);margin:16px 0}
-  .perdida{font-family:'DM Mono',monospace;font-size:12px;color:var(--warn);text-align:center;margin-top:8px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 </style>
@@ -67,15 +70,15 @@
   <div class="header">
     <div class="header-tag">Sistema de Gestion</div>
     <h1>Generador de<br><span>Ranking de Vacas</span></h1>
-    <p class="subtitle">Subi la base de datos actualizada y genera el ranking de riesgo con puntaje, recomendacion e impacto economico para cada vaca.</p>
+    <p class="subtitle">Subi la base actualizada y genera el ranking de riesgo con score, recomendacion e impacto economico por vaca.</p>
   </div>
 
-  <div class="py-status loading" id="py-status">Cargando motor Python... (puede tardar ~30 segundos la primera vez)</div>
+  <div class="py-status loading" id="py-status">Cargando motor Python... (puede tardar ~30 segundos)</div>
 
   <div class="card active" id="card1">
     <div class="card-header">
       <div class="step-num" id="num1">1</div>
-      <div><div class="card-title">Base de datos del tambo</div><div class="card-desc">Excel con los datos actualizados del ultimo control lechero</div></div>
+      <div><div class="card-title">Base de datos del tambo</div><div class="card-desc">Excel con los datos del ultimo control lechero cargado</div></div>
     </div>
     <div class="drop-zone" id="drop-excel">
       <input type="file" id="file-excel" accept=".xlsx,.xls" onchange="handleExcel(this)">
@@ -85,14 +88,42 @@
     </div>
     <div class="info-box" id="info-excel">
       <div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="excel-name">--</span></div>
-      <div class="info-row"><span class="info-label">Vacas en base</span><span class="info-val" id="excel-cows">--</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="card-params">
+    <div class="card-header">
+      <div class="step-num" style="background:var(--surface2);border-color:var(--border);color:var(--text2);font-size:16px">⚙</div>
+      <div><div class="card-title">Parametros del ranking</div><div class="card-desc">Ajusta los valores segun cada tambo</div></div>
+    </div>
+    <div class="params-grid">
+      <div class="param-item">
+        <label>Produccion promedio tambo (L/dia)</label>
+        <input type="number" id="p-prom-prod" value="20" min="1" max="60">
+      </div>
+      <div class="param-item">
+        <label>Umbral RCS cronico (x1000 cel/ml)</label>
+        <input type="number" id="p-umbral-rcs" value="400" min="100" max="2000">
+      </div>
+      <div class="param-item">
+        <label>Meses sucesivos RCS alto</label>
+        <input type="number" id="p-meses-rcs" value="3" min="1" max="6">
+      </div>
+      <div class="param-item">
+        <label>Dias de descarte por tratamiento</label>
+        <input type="number" id="p-dias-desc" value="6" min="1" max="30">
+      </div>
+      <div class="param-item">
+        <label>Precio litro de leche ($)</label>
+        <input type="number" id="p-precio" value="300" min="1">
+      </div>
     </div>
   </div>
 
   <div class="card" id="card2">
     <div class="card-header">
       <div class="step-num" id="num2">2</div>
-      <div><div class="card-title">Generar Ranking</div><div class="card-desc">Calcula el indice de riesgo y recomienda accion para cada vaca</div></div>
+      <div><div class="card-title">Generar Ranking</div><div class="card-desc">Calcula score, recomendacion e impacto economico</div></div>
     </div>
     <button class="btn-run" id="btn-run" disabled onclick="runRanking()">
       <span id="btn-text">Generar Ranking</span>
@@ -108,7 +139,7 @@
       <div class="stat"><div class="stat-num" style="color:#f4d03f" id="stat-c">0</div><div class="stat-label">Controlar</div></div>
       <div class="stat"><div class="stat-num" style="color:#38d9a9" id="stat-o">0</div><div class="stat-label">Observar</div></div>
     </div>
-    <div class="perdida" id="perdida-text"></div>
+    <div class="perdidas" id="perdidas-text"></div>
     <div class="divider"></div>
     <button class="btn-dl" onclick="downloadResult()">Descargar Excel con Ranking</button>
   </div>
@@ -116,10 +147,7 @@
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 <script>
-let pyodide = null;
-let pyReady = false;
-let excelBytes = null;
-let resultBytes = null;
+let pyodide = null, pyReady = false, excelBytes = null, resultBytes = null;
 
 const PYTHON_CODE = `
 import io, datetime, re
@@ -127,46 +155,48 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300):
+def perdida_rcs_dia(rcs_val):
+    if rcs_val is None or rcs_val <= 100: return 0
+    elif rcs_val <= 200: return 0.5
+    elif rcs_val <= 400: return 1.0
+    elif rcs_val <= 800: return 1.75
+    elif rcs_val <= 1600: return 2.75
+    elif rcs_val <= 3200: return 4.0
+    else: return 5.0
+
+def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300, dias_descarte=6):
     excel_data = bytes(excel_data)
     wb = load_workbook(io.BytesIO(excel_data))
-    ws_info = wb[wb.sheetnames[0]]
-
+    ws = wb[wb.sheetnames[0]]
     header_row = 5
     for r in range(1, 11):
-        if str(ws_info.cell(r,1).value or '').strip() == 'RP':
-            header_row = r; break
+        if str(ws.cell(r,1).value or '').strip() == 'RP': header_row = r; break
     data_start = header_row + 1
-
     mc_col_dates = {}
-    for c in range(2, ws_info.max_column+1):
-        v = ws_info.cell(header_row, c).value
+    for c in range(2, ws.max_column+1):
+        v = ws.cell(header_row, c).value
         if isinstance(v, datetime.datetime): mc_col_dates[c] = v.date()
         elif mc_col_dates: break
-
-    target = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA','Prox.Secado','Estado','Est.Actual','Tambo'}
+    target = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA','Prox.Secado','Estado','Est.Actual','Tambo','Le.ACU'}
     anchor_col = None
-    for c in range(2, ws_info.max_column+1):
-        v = ws_info.cell(header_row, c).value
+    for c in range(2, ws.max_column+1):
+        v = ws.cell(header_row, c).value
         if v and str(v).strip() == 'Est.Actual': anchor_col = c; break
     found = {}
     if anchor_col:
-        lo, hi = max(2, anchor_col-15), min(ws_info.max_column, anchor_col+5)
+        lo, hi = max(2, anchor_col-15), min(ws.max_column, anchor_col+8)
         for c in range(lo, hi+1):
-            v = ws_info.cell(header_row, c).value
-            if v and str(v).strip() in target and str(v).strip() not in found:
-                found[str(v).strip()] = c
-
+            v = ws.cell(header_row, c).value
+            if v and str(v).strip() in target and str(v).strip() not in found: found[str(v).strip()] = c
     mc_max = max(mc_col_dates.keys()) if mc_col_dates else 0
-    summary_min = min(found.values()) if found else ws_info.max_column
+    summary_min = min(found.values()) if found else ws.max_column
     rcs_col_dates = {}
     for c in range(mc_max+2, summary_min):
-        v = ws_info.cell(header_row, c).value
+        v = ws.cell(header_row, c).value
         if isinstance(v, datetime.datetime): rcs_col_dates[c] = v.date()
-
     obs_col = None
     for c in range(mc_max+1, summary_min):
-        v = ws_info.cell(header_row, c).value
+        v = ws.cell(header_row, c).value
         if v and str(v).strip().lower() == 'observaciones': obs_col = c; break
 
     def count_mc(cell):
@@ -177,49 +207,53 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             if parts: count += len(parts)
         return count
 
-    def score_obs(obs_text):
-        if not obs_text: return 0, ''
-        obs = str(obs_text).lower()
-        score = 0; labels = []
-        if 'my +' in obs or 'my+' in obs: score += 30; labels.append('Mycoplasma +')
-        elif 'my -' in obs or 'my-' in obs: score += 5; labels.append('Mycoplasma -')
-        if re.search(r'(?<!\\d)2(?!\\d)', obs): score += 25; labels.append('Staph. aureus')
-        if '4ub' in obs: score += 15; labels.append('Strep. uberis')
-        if re.search(r'(?<!\\d)5(?!\\d)', obs): score += 10; labels.append('Staph. sp.')
-        if re.search(r'(?<!\\d)7(?!\\d)', obs): score += 5; labels.append('Coliformes')
-        if 'ui' in obs: score += 8; labels.append('UI')
-        return min(score, 30), ', '.join(labels)
+    def classify_pat(obs_text):
+        if not obs_text: return 0, '', False
+        obs = str(obs_text).lower(); score=0; labels=[]; mayor=False
+        if 'my +' in obs or 'my+' in obs: score+=30; labels.append('Mycoplasma +'); mayor=True
+        elif 'my -' in obs or 'my-' in obs: score+=5; labels.append('Mycoplasma -')
+        if re.search(r'(?<!\\d)2(?!\\d)', obs): score+=25; labels.append('Staph. aureus'); mayor=True
+        if '4ub' in obs: score+=15; labels.append('Strep. uberis')
+        if re.search(r'(?<!\\d)5(?!\\d)', obs): score+=10; labels.append('Staph. sp.')
+        if re.search(r'(?<!\\d)7(?!\\d)', obs): score+=5; labels.append('Coliformes')
+        if 'ui' in obs: score+=8; labels.append('UI')
+        return min(score,30), ', '.join(labels), mayor
 
     today = datetime.date.today()
     all_rows = []
 
-    for info_row in range(data_start, ws_info.max_row+1):
-        rp = ws_info.cell(info_row, 1).value
+    for info_row in range(data_start, ws.max_row+1):
+        rp = ws.cell(info_row, 1).value
         if rp is None: continue
-        ini_lact_raw = ws_info.cell(info_row, 2).value
+        ini_lact_raw = ws.cell(info_row, 2).value
         ini_lact = ini_lact_raw.date() if isinstance(ini_lact_raw, datetime.datetime) else ini_lact_raw
-        nro_lact = ws_info.cell(info_row, found.get('Nro.Lact',0)).value if found.get('Nro.Lact') else None
-        dias_acu = ws_info.cell(info_row, found.get('Dias ACU',0)).value if found.get('Dias ACU') else None
-        le_uc = ws_info.cell(info_row, found.get('Le.UC',0)).value if found.get('Le.UC') else None
-        re_uc = ws_info.cell(info_row, found.get('Re.UC',0)).value if found.get('Re.UC') else None
-        prox_sec_raw = ws_info.cell(info_row, found.get('Prox.Secado',0)).value if found.get('Prox.Secado') else None
+        nro_lact = ws.cell(info_row, found.get('Nro.Lact',0)).value if found.get('Nro.Lact') else None
+        dias_acu = ws.cell(info_row, found.get('Dias ACU',0)).value if found.get('Dias ACU') else None
+        le_uc = ws.cell(info_row, found.get('Le.UC',0)).value if found.get('Le.UC') else None
+        re_uc = ws.cell(info_row, found.get('Re.UC',0)).value if found.get('Re.UC') else None
+        le_acu_raw = ws.cell(info_row, found.get('Le.ACU',0)).value if found.get('Le.ACU') else None
+        prox_sec_raw = ws.cell(info_row, found.get('Prox.Secado',0)).value if found.get('Prox.Secado') else None
         prox_sec = prox_sec_raw.date() if isinstance(prox_sec_raw, datetime.datetime) else prox_sec_raw
-        obs = ws_info.cell(info_row, obs_col).value if obs_col else None
-        mc_act = 0; mc_ant = 0; primer_ep = None
+        estado = str(ws.cell(info_row, found.get('Estado',0)).value or '').strip() if found.get('Estado') else ''
+        obs = ws.cell(info_row, obs_col).value if obs_col else None
+        le_acu = None
+        if le_acu_raw is not None:
+            try: le_acu = float(str(le_acu_raw).replace(',','.').strip())
+            except: pass
+        mc_act=0; mc_ant=0; primer_ep=None
         for col, col_date in mc_col_dates.items():
-            cell = ws_info.cell(info_row, col)
+            cell = ws.cell(info_row, col)
             if cell.value is None and (not cell.comment or not cell.comment.text): continue
             ev_date = cell.value.date() if isinstance(cell.value, datetime.datetime) else (cell.value if isinstance(cell.value, datetime.date) else col_date)
             n = count_mc(cell)
             if ini_lact and ev_date >= ini_lact:
                 mc_act += n
                 if primer_ep is None: primer_ep = (ev_date - ini_lact).days
-            elif ini_lact:
-                mc_ant += n
+            elif ini_lact: mc_ant += n
         mc_total = mc_act + mc_ant
         rcs_vals = []
         for c in sorted(rcs_col_dates.keys()):
-            v = ws_info.cell(info_row, c).value
+            v = ws.cell(info_row, c).value
             try: rcs_vals.append(float(v) if v is not None else None)
             except: rcs_vals.append(None)
         rcs_ult = None
@@ -234,7 +268,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
                 consec += 1
                 if consec >= meses_rcs: rcs_cronico = True; break
             elif v is not None: consec = 0
-        rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
+        pat_score, pat_label, pat_mayor = classify_pat(obs)
         mc_score = 0
         if mc_act >= 4: mc_score = 35
         elif mc_act == 3: mc_score = 28
@@ -249,35 +283,50 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             elif rcs_ult > umbral_rcs: rcs_score = 12
             elif rcs_ult > 200: rcs_score = 5
         if rcs_cronico: rcs_score = min(rcs_score+10, 30)
-        pat_score, pat_label = score_obs(obs)
         lact_score = 5 if (nro_lact and nro_lact>=5) else (3 if (nro_lact and nro_lact>=3) else 0)
-        score_bruto = mc_score + rcs_score + pat_score + lact_score
+        rechazo_score = 5 if estado == 'R' else 0
+        score_bruto = mc_score + rcs_score + pat_score + lact_score + rechazo_score
         prenez_days = (prox_sec - today).days if (prox_sec and isinstance(prox_sec, datetime.date)) else None
-        reduccion = 15 if (prenez_days and 0<prenez_days<=60) else (8 if (prenez_days and prenez_days<=120) else (3 if (prenez_days and prenez_days>120) else 0))
+        esta_prenada = prenez_days is not None and prenez_days > 0
+        reduccion = 0
+        if esta_prenada:
+            if prenez_days <= 60: reduccion = 20
+            elif prenez_days <= 120: reduccion = 12
+            else: reduccion = 5
         score_final = max(0, score_bruto - reduccion)
         litros_dia = (float(le_uc)/30) if le_uc else 0
-        litros_desc = round(mc_total*6*litros_dia, 1)
-        perdida = round(litros_desc*precio_litro, 0)
+        litros_desc_mc = round(mc_act * dias_descarte * litros_dia, 1)
+        perdida_mc = round(litros_desc_mc * precio_litro, 0)
+        perd_rcs_ld = perdida_rcs_dia(rcs_ult)
+        perdida_rcs_mes = round(perd_rcs_ld * 30 * precio_litro, 0)
+        perdida_total = perdida_mc + perdida_rcs_mes
+        pct_leche_perd = round(litros_desc_mc / le_acu * 100, 1) if (le_acu and le_acu > 0 and litros_desc_mc > 0) else None
+        dias_hosp = mc_act * dias_descarte
+        pct_dias_hosp = round(dias_hosp / float(dias_acu) * 100, 1) if (dias_acu and float(dias_acu) > 0 and dias_hosp > 0) else None
+        rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
         prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
-        if score_final >= 70: rec = 'DESCARTAR'
+        if esta_prenada and score_final >= 70: rec = 'SECAR ANTICIPADO (prenada)'
+        elif score_final >= 70: rec = 'DESCARTAR'
         elif score_final >= 50: rec = 'SECAR ANTICIPADO'
         elif score_final >= 30: rec = 'CONTROLAR'
         else: rec = 'OBSERVAR'
-        if reduccion > 0: rec += ' (prenez -' + str(reduccion) + ')'
-        all_rows.append({'rp':rp,'nro_lact':nro_lact,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
-            'primer_ep':primer_ep,'mc_score':mc_score,'rcs_ult':rcs_ult,'rcs_cronico':rcs_cronico,
-            'rcs_score':rcs_score,'rcs_aporte':rcs_aporte,'prod_vs':prod_vs,'pat_label':pat_label,
-            'prox_sec':prox_sec,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
-            'litros_desc':litros_desc,'perdida':perdida,'dias_acu':dias_acu,'reduccion':reduccion})
+        if reduccion > 0 and 'prenada' not in rec: rec += ' (prenez -' + str(reduccion) + ')'
+        all_rows.append({'rp':rp,'nro_lact':nro_lact,'estado':estado,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
+            'primer_ep':primer_ep,'mc_score':mc_score,'rcs_ult':rcs_ult,'rcs_cronico':rcs_cronico,'rcs_score':rcs_score,
+            'rcs_aporte':rcs_aporte,'perd_rcs_ld':perd_rcs_ld,'prod_vs':prod_vs,'pat_label':pat_label,'pat_mayor':pat_mayor,
+            'prox_sec':prox_sec,'esta_prenada':esta_prenada,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
+            'litros_desc_mc':litros_desc_mc,'perdida_mc':perdida_mc,'perdida_rcs_mes':perdida_rcs_mes,
+            'perdida_total':perdida_total,'pct_leche_perd':pct_leche_perd,'pct_dias_hosp':pct_dias_hosp,
+            'dias_acu':dias_acu,'le_acu':le_acu,'reduccion':reduccion})
 
     total_cs = sum(d['rcs_aporte'] for d in all_rows)
     for d in all_rows:
         d['pct_aporte'] = round(d['rcs_aporte']/total_cs*100, 2) if total_cs > 0 else 0
     all_rows.sort(key=lambda x: x['score_final'], reverse=True)
 
-    BLUE='1F4E78'; WHITE='FFFFFF'; RED='C0392B'; RED_LT='FADBD8'
-    ORANGE='E67E22'; ORANGE_LT='FDEBD0'; YELLOW='F9E79F'
-    GREEN='1E8449'; GREEN_LT='D5F5E3'; GREY='F2F3F4'; PURPLE='6C3483'; TEAL='117A65'
+    BLUE='1F4E78'; WHITE='FFFFFF'; RED='C0392B'; RED_LT='FADBD8'; ORANGE='E67E22'
+    ORANGE_LT='FDEBD0'; YELLOW='F9E79F'; GREEN='1E8449'; GREEN_LT='D5F5E3'
+    GREY='F2F3F4'; PURPLE='6C3483'; TEAL='117A65'
     def xf(c): return PatternFill('solid', fgColor=c)
     def xb():
         s=Side(style='thin',color='CCCCCC')
@@ -286,109 +335,109 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
     def xl(): return Alignment(horizontal='left',vertical='center',wrap_text=True)
     def xh(s=9): return Font(name='Arial',bold=True,color=WHITE,size=s)
     def xfont(bold=False,color='000000',size=9): return Font(name='Arial',bold=bold,color=color,size=size)
+    NL = chr(10)
 
     if 'Ranking' in wb.sheetnames: del wb['Ranking']
-    ws = wb.create_sheet('Ranking', 1)
-
-    ws.merge_cells('A1:T1')
-    ws['A1'] = 'RANKING DE VACAS - INDICE DE RIESGO E IMPACTO ECONOMICO'
-    ws['A1'].font=Font(name='Arial',bold=True,color=WHITE,size=13); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc()
-    ws.row_dimensions[1].height=28
-
-    ws.merge_cells('A2:B2')
-    ws['A2']='PARAMETROS'; ws['A2'].font=Font(name='Arial',bold=True,size=9,color='555555')
-    ws['A2'].fill=xf('E8E8E8'); ws['A2'].alignment=xc()
-    params=[('C2','Prod. prom. tambo (L):','D2',prom_prod),('E2','Umbral RCS:','F2',umbral_rcs),
-            ('G2','Meses RCS:','H2',meses_rcs),('I2','MC cronica:','J2',3),
-            ('K2','Dias descarte:','L2',6),('M2','Precio litro ($):','N2',precio_litro)]
-    for lc,lt,vc,vd in params:
-        ws[lc]=lt; ws[lc].font=Font(name='Arial',bold=True,size=8); ws[lc].alignment=Alignment(horizontal='right',vertical='center')
-        ws[vc]=vd; ws[vc].font=Font(name='Arial',bold=True,size=10,color='1F4E78')
-        ws[vc].fill=xf('FFF9C4'); ws[vc].border=xb(); ws[vc].alignment=xc()
-    ws.row_dimensions[2].height=22
-
-    ws.merge_cells('A3:T3')
-    ws['A3']='DESCARTAR (>=70)   SECAR ANTICIPADO (50-69)   CONTROLAR (30-49)   OBSERVAR (<30)'
-    ws['A3'].font=Font(name='Arial',size=9,italic=True); ws['A3'].fill=xf('F8F9FA'); ws['A3'].alignment=xc()
-    ws.row_dimensions[3].height=18
-
-    sections=[('A4:C4','IDENTIFICACION',BLUE),('D4:H4','MASTITIS CLINICA','6E2F1A'),
-              ('I4:L4','RCS','1A6E3A'),('M4:M4','PRODUCCION','1A4F6E'),
-              ('N4:N4','PATOGENO',PURPLE),('O4:O4','PRENEZ',TEAL),
-              ('P4:Q4','PUNTAJE','2C3E50'),('R4:R4','RECOMENDACION','922B21'),
-              ('S4:T4','IMPACTO ECONOMICO','1B4F72')]
+    ws2 = wb.create_sheet('Ranking', 1)
+    ws2.merge_cells('A1:W1')
+    ws2['A1']='RANKING DE VACAS - INDICE DE RIESGO E IMPACTO ECONOMICO'
+    ws2['A1'].font=Font(name='Arial',bold=True,color=WHITE,size=13); ws2['A1'].fill=xf(BLUE); ws2['A1'].alignment=xc()
+    ws2.row_dimensions[1].height=28
+    ws2.merge_cells('A2:B2')
+    ws2['A2']='PARAMETROS'; ws2['A2'].font=Font(name='Arial',bold=True,size=9,color='555555')
+    ws2['A2'].fill=xf('E8E8E8'); ws2['A2'].alignment=xc()
+    params2=[('C2','Prod. prom. (L):','D2',prom_prod),('E2','Umbral RCS:','F2',umbral_rcs),
+             ('G2','Meses RCS:','H2',meses_rcs),('I2','Dias descarte:','J2',dias_descarte),
+             ('K2','Precio litro ($):','L2',precio_litro)]
+    for lc,lt,vc,vd in params2:
+        ws2[lc]=lt; ws2[lc].font=Font(name='Arial',bold=True,size=8); ws2[lc].alignment=Alignment(horizontal='right',vertical='center')
+        ws2[vc]=vd; ws2[vc].font=Font(name='Arial',bold=True,size=10,color='1F4E78')
+        ws2[vc].fill=xf('FFF9C4'); ws2[vc].border=xb(); ws2[vc].alignment=xc()
+    ws2.row_dimensions[2].height=22
+    ws2.merge_cells('A3:W3')
+    ws2['A3']='DESCARTAR (>=70)   SECAR ANTICIPADO (50-69)   CONTROLAR (30-49)   OBSERVAR (<30)   * Prenada = no descartar'
+    ws2['A3'].font=Font(name='Arial',size=9,italic=True); ws2['A3'].fill=xf('F8F9FA'); ws2['A3'].alignment=xc()
+    ws2.row_dimensions[3].height=18
+    sections=[('A4:D4','IDENTIFICACION',BLUE),('E4:I4','MASTITIS CLINICA','6E2F1A'),
+              ('J4:M4','RCS','1A6E3A'),('N4:N4','PRODUCCION','1A4F6E'),
+              ('O4:O4','PATOGENO',PURPLE),('P4:P4','PRENEZ',TEAL),
+              ('Q4:R4','PUNTAJE','2C3E50'),('S4:S4','RECOMENDACION','922B21'),
+              ('T4:W4','IMPACTO ECONOMICO','1B4F72')]
     for rng,label,color in sections:
-        ws.merge_cells(rng); c=ws[rng.split(':')[0]]
+        ws2.merge_cells(rng); c=ws2[rng.split(':')[0]]
         c.value=label; c.font=xh(8); c.fill=xf(color); c.alignment=xc()
-    ws.row_dimensions[4].height=20
-
-    NL = chr(10)
-    headers=['RP','Lact.','Est.',
-             'MC'+NL+'Lact.Act.','MC'+NL+'Lact.Ant.','MC'+NL+'Total','Dias'+NL+'1er Ep.',
-             'Ptos'+NL+'MC','RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','% Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
-             'Le.UC'+NL+'vs Prom.','Patogeno','Prox.Sec'+NL+'(prenez)','Score'+NL+'Bruto','Score'+NL+'Final',
-             'RECOMENDACION','Litros'+NL+'Descart.','Perdida'+NL+'($)']
-    hcols=[BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
+    ws2.row_dimensions[4].height=20
+    headers=['RP','Lact.','Est.','Rechazo',
+             'MC'+NL+'Lact.Act.','MC'+NL+'Lact.Ant.','MC'+NL+'Total','Dias'+NL+'1er Ep.','Ptos'+NL+'MC',
+             'RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','%Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
+             'Le.UC'+NL+'vs Prom.','Patogeno'+NL+'(M)=mayor','Prox.Sec'+NL+'(prenez)',
+             'Score'+NL+'Bruto','Score'+NL+'Final','RECOMENDACION',
+             'Perd.L/dia'+NL+'por RCS','Perd.MC'+NL+'($)','%Leche'+NL+'Perdida','%Dias'+NL+'Hospital']
+    hcols=[BLUE,BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
-           '2C3E50','2C3E50','922B21','1B4F72','1B4F72']
+           '2C3E50','2C3E50','922B21','1B4F72','1B4F72','1B4F72','1B4F72']
     for i,(h,fc) in enumerate(zip(headers,hcols)):
-        c=ws.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
-    ws.row_dimensions[5].height=36
-
-    widths=[9,6,6,8,8,7,9,7,11,9,9,7,11,16,11,7,7,22,10,12]
-    for i,w in enumerate(widths):
-        ws.column_dimensions[get_column_letter(i+1)].width=w
+        c=ws2.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
+    ws2.row_dimensions[5].height=40
+    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,10,10,9,9]
+    for i,w in enumerate(widths): ws2.column_dimensions[get_column_letter(i+1)].width=w
 
     cats={'DESCARTAR':0,'SECAR':0,'CONTROLAR':0,'OBSERVAR':0}
-    total_perdida=0
+    tot_perd_mc=0; tot_perd_rcs=0
 
     for i,d in enumerate(all_rows):
         r=i+6; bg=GREY if r%2==0 else WHITE
         pct_str=str(d['pct_aporte'])+'%' if d['pct_aporte']>0 else '--'
-        row_vals=[d['rp'],d['nro_lact'],'',d['mc_act'],d['mc_ant'],d['mc_total'],
-                  d['primer_ep'],d['mc_score'],d['rcs_ult'],'Si' if d['rcs_cronico'] else '',
-                  pct_str,d['rcs_score'],d['prod_vs'],d['pat_label'],d['prox_sec'],
-                  d['score_bruto'],d['score_final'],d['rec'],
-                  d['litros_desc'],int(d['perdida']) if d['perdida'] else 0]
+        pct_leche=str(d['pct_leche_perd'])+'%' if d['pct_leche_perd'] is not None else '--'
+        pct_dias=str(d['pct_dias_hosp'])+'%' if d['pct_dias_hosp'] is not None else '--'
+        pat_str=('(M) ' if d['pat_mayor'] else '(m) ')+d['pat_label'] if d['pat_label'] else '--'
+        row_vals=[d['rp'],d['nro_lact'],d['estado'],'Si' if d['estado']=='R' else '',
+                  d['mc_act'],d['mc_ant'],d['mc_total'],d['primer_ep'],d['mc_score'],
+                  d['rcs_ult'],'Si' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
+                  d['prod_vs'],pat_str,d['prox_sec'],d['score_bruto'],d['score_final'],d['rec'],
+                  d['perd_rcs_ld'],int(d['perdida_mc']) if d['perdida_mc'] else 0,pct_leche,pct_dias]
         for ci,val in enumerate(row_vals,1):
-            c=ws.cell(r,ci,val); c.font=xfont(size=9)
-            c.alignment=xc() if ci!=18 else xl()
-            c.border=xb(); c.fill=xf(bg)
-        for sc,sv in [(16,d['score_bruto']),(17,d['score_final'])]:
-            sc_c=ws.cell(r,sc)
+            c=ws2.cell(r,ci,val); c.font=xfont(size=9)
+            c.alignment=xc() if ci!=19 else xl(); c.border=xb(); c.fill=xf(bg)
+        for sc,sv in [(17,d['score_bruto']),(18,d['score_final'])]:
+            sc_c=ws2.cell(r,sc)
             if sv>=70: sc_c.fill=xf(RED); sc_c.font=Font(name='Arial',bold=True,color=WHITE,size=9)
             elif sv>=50: sc_c.fill=xf(ORANGE); sc_c.font=Font(name='Arial',bold=True,color=WHITE,size=9)
             elif sv>=30: sc_c.fill=xf('F4D03F'); sc_c.font=Font(name='Arial',bold=True,color='000000',size=9)
             else: sc_c.fill=xf(GREEN_LT); sc_c.font=Font(name='Arial',bold=True,color=GREEN,size=9)
-        rc=ws.cell(r,18); rec_str=d['rec']
+        rc=ws2.cell(r,19); rec_str=d['rec']
         if 'DESCARTAR' in rec_str: rc.fill=xf(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9); cats['DESCARTAR']+=1
         elif 'SECAR' in rec_str: rc.fill=xf(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9); cats['SECAR']+=1
         elif 'CONTROLAR' in rec_str: rc.fill=xf(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9); cats['CONTROLAR']+=1
         else: rc.fill=xf(GREEN_LT); rc.font=Font(name='Arial',bold=True,color=GREEN,size=9); cats['OBSERVAR']+=1
+        if d['estado']=='R':
+            ws2.cell(r,4).fill=xf(ORANGE_LT); ws2.cell(r,4).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        if d['pat_mayor']:
+            ws2.cell(r,15).fill=xf(RED_LT); ws2.cell(r,15).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif d['pat_label']:
+            ws2.cell(r,15).fill=xf(YELLOW); ws2.cell(r,15).font=Font(name='Arial',bold=True,color='8B6914',size=9)
         if d['rcs_cronico']:
-            ws.cell(r,10).fill=xf(RED_LT); ws.cell(r,10).font=Font(name='Arial',bold=True,color=RED,size=9)
-        if d['reduccion']>0:
-            ws.cell(r,15).fill=xf(GREEN_LT); ws.cell(r,15).font=Font(name='Arial',bold=True,color=GREEN,size=9)
+            ws2.cell(r,11).fill=xf(RED_LT); ws2.cell(r,11).font=Font(name='Arial',bold=True,color=RED,size=9)
+        if d['esta_prenada']:
+            ws2.cell(r,16).fill=xf(GREEN_LT); ws2.cell(r,16).font=Font(name='Arial',bold=True,color=GREEN,size=9)
         if d['pct_aporte']>5:
-            ws.cell(r,11).fill=xf(RED_LT); ws.cell(r,11).font=Font(name='Arial',bold=True,color=RED,size=9)
+            ws2.cell(r,12).fill=xf(RED_LT); ws2.cell(r,12).font=Font(name='Arial',bold=True,color=RED,size=9)
         elif d['pct_aporte']>2:
-            ws.cell(r,11).fill=xf(ORANGE_LT); ws.cell(r,11).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
-        if d['perdida']>100000:
-            ws.cell(r,20).fill=xf(RED_LT); ws.cell(r,20).font=Font(name='Arial',bold=True,color=RED,size=9)
-        elif d['perdida']>50000:
-            ws.cell(r,20).fill=xf(ORANGE_LT); ws.cell(r,20).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
-        ws.row_dimensions[r].height=15
-        total_perdida+=d['perdida']
+            ws2.cell(r,12).fill=xf(ORANGE_LT); ws2.cell(r,12).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        if d['perd_rcs_ld'] >= 2.75:
+            ws2.cell(r,20).fill=xf(RED_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif d['perd_rcs_ld'] >= 1.0:
+            ws2.cell(r,20).fill=xf(ORANGE_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        ws2.row_dimensions[r].height=15
+        tot_perd_mc+=d['perdida_mc']; tot_perd_rcs+=d['perdida_rcs_mes']
 
-    ws.freeze_panes='A6'
-    ws.merge_cells('O2:T2')
-    perdida_str=str(int(total_perdida))
-    ws['O2']='Total: '+str(len(all_rows))+'   DESCARTAR:'+str(cats['DESCARTAR'])+'   SECAR:'+str(cats['SECAR'])+'   CONTROLAR:'+str(cats['CONTROLAR'])+'   OBSERVAR:'+str(cats['OBSERVAR'])+'   Perdida: $'+perdida_str
-    ws['O2'].font=Font(name='Arial',bold=True,size=9); ws['O2'].fill=xf('E8E8E8'); ws['O2'].alignment=xc()
+    ws2.freeze_panes='A6'
+    ws2.merge_cells('M2:W2')
+    ws2['M2']='Total: '+str(len(all_rows))+'  DESC:'+str(cats['DESCARTAR'])+'  SECAR:'+str(cats['SECAR'])+'  CTRL:'+str(cats['CONTROLAR'])+'  OBS:'+str(cats['OBSERVAR'])+'  |  Perd.MC: $'+str(int(tot_perd_mc))+'  Perd.RCS: $'+str(int(tot_perd_rcs))
+    ws2['M2'].font=Font(name='Arial',bold=True,size=9); ws2['M2'].fill=xf('E8E8E8'); ws2['M2'].alignment=xc()
 
-    out=io.BytesIO()
-    wb.save(out); out.seek(0)
-    return out.read(), cats, int(total_perdida), len(all_rows)
+    out=io.BytesIO(); wb.save(out); out.seek(0)
+    return out.read(), cats, int(tot_perd_mc), int(tot_perd_rcs), len(all_rows)
 `;
 
 (async function() {
@@ -404,7 +453,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
     status.className = 'py-status ready';
     checkReady();
   } catch(e) {
-    status.textContent = 'Error cargando Python: ' + e.message;
+    status.textContent = 'Error: ' + e.message;
     status.className = 'py-status error';
   }
 })();
@@ -417,11 +466,10 @@ async function handleExcel(input) {
   const file = input.files[0]; if(!file) return;
   excelBytes = await readAsArrayBuffer(file);
   document.getElementById('excel-name').textContent = file.name;
-  document.getElementById('excel-cows').textContent = 'Listo para procesar';
   document.getElementById('info-excel').classList.add('visible');
   document.getElementById('drop-excel').classList.add('loaded');
-  document.getElementById('label-excel').innerHTML = '<span class="success">Archivo cargado: <strong>' + file.name + '</strong></span>';
-  document.getElementById('num1').textContent = '✓';
+  document.getElementById('label-excel').innerHTML = '<span style="color:var(--accent2)">Cargado: <strong>' + file.name + '</strong></span>';
+  document.getElementById('num1').textContent = 'OK';
   document.getElementById('card1').classList.add('done');
   document.getElementById('card2').classList.add('active');
   checkReady();
@@ -439,16 +487,29 @@ function showError(msg) {
 async function runRanking() {
   const btn = document.getElementById('btn-run');
   btn.disabled = true;
-  document.getElementById('btn-text').innerHTML = '<div class="spinner"></div> Calculando ranking...';
+  document.getElementById('btn-text').innerHTML = '<div class="spinner"></div> Calculando...';
   document.getElementById('error-box').classList.remove('visible');
   document.getElementById('result-box').classList.remove('visible');
 
+  const promProd = parseFloat(document.getElementById('p-prom-prod').value) || 20;
+  const umbralRcs = parseFloat(document.getElementById('p-umbral-rcs').value) || 400;
+  const mesesRcs = parseInt(document.getElementById('p-meses-rcs').value) || 3;
+  const diasDesc = parseInt(document.getElementById('p-dias-desc').value) || 6;
+  const precio = parseFloat(document.getElementById('p-precio').value) || 300;
+
   try {
     pyodide.globals.set('excel_data_js', excelBytes);
+    pyodide.globals.set('prom_prod_js', promProd);
+    pyodide.globals.set('umbral_rcs_js', umbralRcs);
+    pyodide.globals.set('meses_rcs_js', mesesRcs);
+    pyodide.globals.set('dias_desc_js', diasDesc);
+    pyodide.globals.set('precio_js', precio);
+
     const resultJson = await pyodide.runPythonAsync(`
 import json
-result_bytes_py, cats_py, perdida_py, total_py = generar_ranking(excel_data_js)
-json.dumps({'cats': cats_py, 'perdida': perdida_py, 'total': total_py})
+rb, cats, pmc, prcs, total = generar_ranking(excel_data_js, prom_prod_js, umbral_rcs_js, meses_rcs_js, precio_js, dias_desc_js)
+result_bytes_py = rb
+json.dumps({'cats':cats,'pmc':pmc,'prcs':prcs,'total':total})
 `);
     const info = JSON.parse(resultJson);
     const rb = pyodide.globals.get('result_bytes_py');
@@ -458,10 +519,15 @@ json.dumps({'cats': cats_py, 'perdida': perdida_py, 'total': total_py})
     document.getElementById('stat-s').textContent = info.cats.SECAR;
     document.getElementById('stat-c').textContent = info.cats.CONTROLAR;
     document.getElementById('stat-o').textContent = info.cats.OBSERVAR;
-    document.getElementById('perdida-text').textContent = 'Perdida estimada total por leche descartada: $' + info.perdida.toLocaleString();
+
+    const ptext = document.getElementById('perdidas-text');
+    ptext.innerHTML =
+      'Perdida por leche descartada (MC): $' + info.pmc.toLocaleString() + '\n' +
+      'Perdida estimada por RCS elevado (mensual): $' + info.prcs.toLocaleString() + '\n' +
+      'Total estimado: $' + (info.pmc + info.prcs).toLocaleString();
 
     document.getElementById('result-box').classList.add('visible');
-    document.getElementById('num2').textContent = '✓';
+    document.getElementById('num2').textContent = 'OK';
     document.getElementById('card2').classList.add('done');
     document.getElementById('btn-text').textContent = 'Ranking generado';
   } catch(e) {
@@ -486,8 +552,7 @@ document.getElementById('drop-excel').addEventListener('drop', e=>{
   e.preventDefault(); document.getElementById('drop-excel').classList.remove('dragover');
   const file=e.dataTransfer.files[0]; if(!file) return;
   const inp=document.getElementById('file-excel');
-  const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files;
-  handleExcel(inp);
+  const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files; handleExcel(inp);
 });
 </script>
 </body>
