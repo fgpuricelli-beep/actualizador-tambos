@@ -477,12 +477,18 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
     for row in csv_rows:
         if normalize_rp(row.get('RP','')) is None: continue
         tambo_groups.setdefault(row.get('Tambo','X'), []).append(row)
-    selected = csv_rows
-    if len(tambo_groups)>1:
-        best=-1
-        for t,rows in tambo_groups.items():
-            ov=sum(1 for r in rows if normalize_rp(r['RP']) in db_rps)
-            if ov>best: best=ov; selected=rows
+
+    # Select all tambos that have overlap with the base (not just the best one)
+    if len(tambo_groups) > 1:
+        selected = []
+        for t, rows in tambo_groups.items():
+            ov = sum(1 for r in rows if normalize_rp(r['RP']) in db_rps)
+            if ov > 0:
+                selected.extend(rows)
+        if not selected:
+            selected = csv_rows  # fallback: use all
+    else:
+        selected = csv_rows
 
     csv_map = {}
     csv_map_display = {}  # normalized -> original RP value (for writing back)
