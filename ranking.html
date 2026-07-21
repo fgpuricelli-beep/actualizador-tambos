@@ -190,12 +190,36 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             if v and str(v).strip() in target and str(v).strip() not in found: found[str(v).strip()] = c
     mc_max = max(mc_col_dates.keys()) if mc_col_dates else 0
     summary_min = min(found.values()) if found else ws.max_column
-    rcs_col_dates = {}
+    # Find RCS section using row 4 section header
+    rcs_section_start = None
     for c in range(mc_max+2, summary_min):
-        v = ws.cell(header_row, c).value
-        if isinstance(v, datetime.datetime): rcs_col_dates[c] = v.date()
+        v = ws.cell(header_row-1, c).value
+        if v and 'RCS' in str(v).upper():
+            rcs_section_start = c; break
+    # If found via header, use it; otherwise fallback to last block of dates before summary
+    rcs_col_dates = {}
+    if rcs_section_start:
+        for c in range(rcs_section_start, summary_min):
+            v = ws.cell(header_row, c).value
+            if isinstance(v, datetime.datetime): rcs_col_dates[c] = v.date()
+    else:
+        # fallback: take the LAST contiguous block of date cols before summary
+        date_blocks = []
+        current_block = []
+        for c in range(mc_max+2, summary_min):
+            v = ws.cell(header_row, c).value
+            if isinstance(v, datetime.datetime):
+                current_block.append((c, v.date()))
+            elif current_block:
+                date_blocks.append(current_block)
+                current_block = []
+        if current_block: date_blocks.append(current_block)
+        if date_blocks:
+            for c, d in date_blocks[-1]: rcs_col_dates[c] = d
+    # Find Observaciones col: look in revisacion section (between MC and RCS)
     obs_col = None
-    for c in range(mc_max+1, summary_min):
+    rcs_start = min(rcs_col_dates.keys()) if rcs_col_dates else summary_min
+    for c in range(mc_max+1, rcs_start):
         v = ws.cell(header_row, c).value
         if v and str(v).strip().lower() == 'observaciones': obs_col = c; break
 
@@ -263,11 +287,27 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             for v in reversed(rcs_vals):
                 if v is not None: rcs_ult = v; break
         rcs_cronico = False; consec = 0
-        for v in rcs_vals[-8:]:
-            if v is not None and v > umbral_rcs:
-                consec += 1
+        # Only check RCS within current lactation and truly consecutive months
+        rcs_sorted = sorted([(rcs_col_dates[c], float(ws.cell(info_row,c).value))
+                              for c in sorted(rcs_col_dates.keys())
+                              if ws.cell(info_row,c).value is not None
+                              and str(ws.cell(info_row,c).value).replace('.','').replace(',','').isdigit()],
+                             key=lambda x: x[0])
+        # Filter to current lactation only
+        if ini_lact:
+            rcs_sorted = [(dt, v) for dt, v in rcs_sorted if dt >= ini_lact]
+        for idx, (dt, v) in enumerate(rcs_sorted):
+            if v > umbral_rcs:
+                if idx > 0:
+                    prev_dt = rcs_sorted[idx-1][0]
+                    months_apart = (dt.year - prev_dt.year)*12 + (dt.month - prev_dt.month)
+                    if months_apart > 1: consec = 1
+                    else: consec += 1
+                else:
+                    consec = 1
                 if consec >= meses_rcs: rcs_cronico = True; break
-            elif v is not None: consec = 0
+            else:
+                consec = 0
         pat_score, pat_label, pat_mayor = classify_pat(obs)
         mc_score = 0
         if mc_act >= 4: mc_score = 35
@@ -305,9 +345,10 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         pct_dias_hosp = round(dias_hosp / float(dias_acu) * 100, 1) if (dias_acu and float(dias_acu) > 0 and dias_hosp > 0) else None
         rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
         prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
-        if esta_prenada and score_final >= 70: rec = 'SECAR ANTICIPADO (prenada)'
+        if esta_prenada and score_final >= 50: rec = 'SECAR ANTICIPADO (prenada)'
+        elif esta_prenada and score_final >= 30: rec = 'CONTROLAR (prenada)'
         elif score_final >= 70: rec = 'DESCARTAR'
-        elif score_final >= 50: rec = 'SECAR ANTICIPADO'
+        elif score_final >= 50: rec = 'EVALUAR DESCARTE'
         elif score_final >= 30: rec = 'CONTROLAR'
         else: rec = 'OBSERVAR'
         if reduccion > 0 and 'prenada' not in rec: rec += ' (prenez -' + str(reduccion) + ')'
@@ -355,7 +396,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         ws2[vc].fill=xf('FFF9C4'); ws2[vc].border=xb(); ws2[vc].alignment=xc()
     ws2.row_dimensions[2].height=22
     ws2.merge_cells('A3:W3')
-    ws2['A3']='DESCARTAR (>=70)   SECAR ANTICIPADO (50-69)   CONTROLAR (30-49)   OBSERVAR (<30)   * Prenada = no descartar'
+    ws2['A3']='DESCARTAR (>=70, no prenada)   EVALUAR DESCARTE (50-69, no prenada)   SECAR ANTICIPADO (prenada)   CONTROLAR (30-49)   OBSERVAR (<30)'
     ws2['A3'].font=Font(name='Arial',size=9,italic=True); ws2['A3'].fill=xf('F8F9FA'); ws2['A3'].alignment=xc()
     ws2.row_dimensions[3].height=18
     sections=[('A4:D4','IDENTIFICACION',BLUE),('E4:I4','MASTITIS CLINICA','6E2F1A'),
@@ -406,7 +447,8 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             elif sv>=30: sc_c.fill=xf('F4D03F'); sc_c.font=Font(name='Arial',bold=True,color='000000',size=9)
             else: sc_c.fill=xf(GREEN_LT); sc_c.font=Font(name='Arial',bold=True,color=GREEN,size=9)
         rc=ws2.cell(r,19); rec_str=d['rec']
-        if 'DESCARTAR' in rec_str: rc.fill=xf(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9); cats['DESCARTAR']+=1
+        if 'DESCARTAR' in rec_str and 'EVALUAR' not in rec_str: rc.fill=xf(RED_LT); rc.font=Font(name='Arial',bold=True,color=RED,size=9); cats['DESCARTAR']+=1
+        elif 'EVALUAR DESCARTE' in rec_str: rc.fill=xf('F5CBA7'); rc.font=Font(name='Arial',bold=True,color='784212',size=9); cats['SECAR']+=1
         elif 'SECAR' in rec_str: rc.fill=xf(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9); cats['SECAR']+=1
         elif 'CONTROLAR' in rec_str: rc.fill=xf(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9); cats['CONTROLAR']+=1
         else: rc.fill=xf(GREEN_LT); rc.font=Font(name='Arial',bold=True,color=GREEN,size=9); cats['OBSERVAR']+=1
