@@ -341,6 +341,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         perdida_rcs_mes = round(perd_rcs_ld * 30 * precio_litro, 0)
         perdida_total = perdida_mc + perdida_rcs_mes
         pct_leche_perd = round(litros_desc_mc / le_acu * 100, 1) if (le_acu and le_acu > 0 and litros_desc_mc > 0) else None
+        pct_rcs_loss = round(perd_rcs_ld / float(le_uc) * 100, 1) if (le_uc and float(le_uc) > 0 and perd_rcs_ld > 0) else None
         dias_hosp = mc_act * dias_descarte
         pct_dias_hosp = round(dias_hosp / float(dias_acu) * 100, 1) if (dias_acu and float(dias_acu) > 0 and dias_hosp > 0) else None
         rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
@@ -357,7 +358,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             'rcs_aporte':rcs_aporte,'perd_rcs_ld':perd_rcs_ld,'prod_vs':prod_vs,'pat_label':pat_label,'pat_mayor':pat_mayor,
             'prox_sec':prox_sec,'esta_prenada':esta_prenada,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
             'litros_desc_mc':litros_desc_mc,'perdida_mc':perdida_mc,'perdida_rcs_mes':perdida_rcs_mes,
-            'perdida_total':perdida_total,'pct_leche_perd':pct_leche_perd,'pct_dias_hosp':pct_dias_hosp,
+            'perdida_total':perdida_total,'pct_leche_perd':pct_leche_perd,'pct_rcs_loss':pct_rcs_loss,'pct_dias_hosp':pct_dias_hosp,
             'dias_acu':dias_acu,'le_acu':le_acu,'reduccion':reduccion})
 
     total_cs = sum(d['rcs_aporte'] for d in all_rows)
@@ -403,7 +404,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
               ('J4:M4','RCS','1A6E3A'),('N4:N4','PRODUCCION','1A4F6E'),
               ('O4:O4','PATOGENO',PURPLE),('P4:P4','PRENEZ',TEAL),
               ('Q4:R4','PUNTAJE','2C3E50'),('S4:S4','RECOMENDACION','922B21'),
-              ('T4:W4','IMPACTO ECONOMICO','1B4F72')]
+              ('T4:Z4','IMPACTO ECONOMICO','1B4F72')]
     for rng,label,color in sections:
         ws2.merge_cells(rng); c=ws2[rng.split(':')[0]]
         c.value=label; c.font=xh(8); c.fill=xf(color); c.alignment=xc()
@@ -413,14 +414,15 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
              'RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','%Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
              'Le.UC'+NL+'vs Prom.','Patogeno'+NL+'(M)=mayor','Prox.Sec'+NL+'(prenez)',
              'Score'+NL+'Bruto','Score'+NL+'Final','RECOMENDACION',
-             'Perd.L/dia'+NL+'por RCS','Perd.MC'+NL+'($)','%Leche'+NL+'Perdida','%Dias'+NL+'Hospital']
+             'L/dia'+NL+'perd.RCS','L desc.'+NL+'por MC','Total L'+NL+'perdidos','Perdida'+NL+'total ($)','%Perd'+NL+'RCS/dia','%Leche'+NL+'desc.MC','%Dias'+NL+'Hospital']
     hcols=[BLUE,BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
-           '2C3E50','2C3E50','922B21','1B4F72','1B4F72','1B4F72','1B4F72']
+           '2C3E50','2C3E50','922B21',
+           '1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72']
     for i,(h,fc) in enumerate(zip(headers,hcols)):
         c=ws2.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
     ws2.row_dimensions[5].height=40
-    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,10,10,9,9]
+    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,8,9,9,11,8,9,9]
     for i,w in enumerate(widths): ws2.column_dimensions[get_column_letter(i+1)].width=w
 
     cats={'DESCARTAR':0,'SECAR':0,'CONTROLAR':0,'OBSERVAR':0}
@@ -431,12 +433,16 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         pct_str=str(d['pct_aporte'])+'%' if d['pct_aporte']>0 else '--'
         pct_leche=str(d['pct_leche_perd'])+'%' if d['pct_leche_perd'] is not None else '--'
         pct_dias=str(d['pct_dias_hosp'])+'%' if d['pct_dias_hosp'] is not None else '--'
+        pct_rcs=str(d['pct_rcs_loss'])+'%' if d['pct_rcs_loss'] is not None else '--'
         pat_str=('(M) ' if d['pat_mayor'] else '(m) ')+d['pat_label'] if d['pat_label'] else '--'
+        total_litros = round(d['perd_rcs_ld']*30 + d['litros_desc_mc'], 1)
+        perdida_total_val = round(total_litros * precio_litro, 0)
         row_vals=[d['rp'],d['nro_lact'],d['estado'],'Si' if d['estado']=='R' else '',
                   d['mc_act'],d['mc_ant'],d['mc_total'],d['primer_ep'],d['mc_score'],
                   d['rcs_ult'],'Si' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
                   d['prod_vs'],pat_str,d['prox_sec'],d['score_bruto'],d['score_final'],d['rec'],
-                  d['perd_rcs_ld'],int(d['perdida_mc']) if d['perdida_mc'] else 0,pct_leche,pct_dias]
+                  d['perd_rcs_ld'],d['litros_desc_mc'],total_litros,
+                  int(perdida_total_val),pct_rcs,pct_leche,pct_dias]
         for ci,val in enumerate(row_vals,1):
             c=ws2.cell(r,ci,val); c.font=xfont(size=9)
             c.alignment=xc() if ci!=19 else xl(); c.border=xb(); c.fill=xf(bg)
@@ -470,6 +476,12 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             ws2.cell(r,20).fill=xf(RED_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=RED,size=9)
         elif d['perd_rcs_ld'] >= 1.0:
             ws2.cell(r,20).fill=xf(ORANGE_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
+        total_litros_row = round(d['perd_rcs_ld']*30 + d['litros_desc_mc'], 1)
+        perdida_total_row = round(total_litros_row * precio_litro, 0)
+        if perdida_total_row > 150000:
+            ws2.cell(r,23).fill=xf(RED_LT); ws2.cell(r,23).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif perdida_total_row > 80000:
+            ws2.cell(r,23).fill=xf(ORANGE_LT); ws2.cell(r,23).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
         ws2.row_dimensions[r].height=15
         tot_perd_mc+=d['perdida_mc']; tot_perd_rcs+=d['perdida_rcs_mes']
 
