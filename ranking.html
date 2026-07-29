@@ -335,10 +335,12 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             else: reduccion = 5
         score_final = max(0, score_bruto - reduccion)
         litros_dia = (float(le_uc)/30) if le_uc else 0
+        dias_acu_float = float(dias_acu) if dias_acu else 0
+        # Use Le.ACU/DEL for more accurate average daily production during lactation
+        prod_dia_promedio = (le_acu / dias_acu_float) if (le_acu and dias_acu_float > 0) else litros_dia
 
-        # === ECONOMIC IMPACT - based on full current lactation ===
-        # 1. Leche descartada por MC (lactancia actual completa)
-        litros_desc_mc = round(mc_act * dias_descarte * litros_dia, 1)
+        # 1. Leche descartada por MC (lactancia actual) usando produccion promedio real
+        litros_desc_mc = round(mc_act * dias_descarte * prod_dia_promedio, 1)
         perdida_mc = round(litros_desc_mc * precio_litro, 0)
 
         # 2. Perdida por RCS - promedio del Score Lineal de la lactancia actual
@@ -352,7 +354,6 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             perd_rcs_promedio = sum(perdida_rcs_dia(v) for _, v in rcs_lact_vals) / len(rcs_lact_vals)
         else:
             perd_rcs_promedio = perdida_rcs_dia(rcs_ult)
-        dias_acu_float = float(dias_acu) if dias_acu else 0
         litros_perd_rcs_lact = round(perd_rcs_promedio * dias_acu_float, 1) if dias_acu_float > 0 else 0
         perdida_rcs_lact = round(litros_perd_rcs_lact * precio_litro, 0)
 
