@@ -63,9 +63,45 @@
   .divider{height:1px;background:var(--border);margin:16px 0}
   @keyframes spin{to{transform:rotate(360deg)}}
   .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+  /* LOGIN */
+  #login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+  .login-title{font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px}
+  .login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .login-field input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .2s}
+  .login-btn:hover{background:#6a9ff9}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;text-align:center;display:none}
+  #app-content{display:none}
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Sistema de Gestion</div>
+    <div class="login-sub">Generador de Ranking — acceso restringido</div>
+    <div class="login-field">
+      <label>USUARIO</label>
+      <input type="text" id="login-user" autocomplete="username" placeholder="Usuario">
+    </div>
+    <div class="login-field">
+      <label>CONTRASENA</label>
+      <input type="password" id="login-pass" autocomplete="current-password" placeholder="Contrasena" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contrasena incorrectos</div>
+  </div>
+</div>
+
+<!-- APP CONTENT -->
+<div id="app-content">
 <div class="container">
   <div class="header">
     <div class="header-tag">Sistema de Gestion</div>
@@ -367,6 +403,8 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
 
         # 4. % total perdida / Le.ACU
         pct_total_lact = round(total_litros_lact / le_acu * 100, 1) if (le_acu and le_acu > 0 and total_litros_lact > 0) else None
+        leche_potencial = round(le_acu + total_litros_lact, 1) if (le_acu and total_litros_lact > 0) else le_acu
+        pct_total_potencial = round(total_litros_lact / leche_potencial * 100, 1) if (leche_potencial and leche_potencial > 0 and total_litros_lact > 0) else None
         pct_leche_perd = round(litros_desc_mc / le_acu * 100, 1) if (le_acu and le_acu > 0 and litros_desc_mc > 0) else None
         pct_rcs_loss = round(perd_rcs_ld / float(le_uc) * 100, 1) if (le_uc and float(le_uc) > 0 and perd_rcs_ld > 0) else None
         dias_hosp = mc_act * dias_descarte
@@ -387,6 +425,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             'litros_desc_mc':litros_desc_mc,'perdida_mc':perdida_mc,
             'litros_perd_rcs_lact':litros_perd_rcs_lact,'perdida_rcs_lact':perdida_rcs_lact,
             'total_litros_lact':total_litros_lact,'perdida_total_lact':perdida_total_lact,
+            'leche_potencial':leche_potencial,'pct_total_potencial':pct_total_potencial,
             'perdida_rcs_mes':perdida_rcs_mes,
             'pct_leche_perd':pct_leche_perd,'pct_rcs_loss':pct_rcs_loss,
             'pct_total_lact':pct_total_lact,'pct_dias_hosp':pct_dias_hosp,
@@ -445,15 +484,15 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
              'RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','%Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
              'Le.UC'+NL+'vs Prom.','Patogeno'+NL+'(M)=mayor','Prox.Sec'+NL+'(prenez)',
              'Score'+NL+'Bruto','Score'+NL+'Final','RECOMENDACION',
-             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','%Perd'+NL+'RCS/dia','%Leche'+NL+'desc.MC','%Total'+NL+'vs LeACU']
+             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','Leche'+NL+'potencial','%Perd'+NL+'vs Potencial','%Perd'+NL+'RCS/dia','%Leche'+NL+'desc.MC','%Total'+NL+'vs LeACU']
     hcols=[BLUE,BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
            '2C3E50','2C3E50','922B21',
-           '1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72']
+           '1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72']
     for i,(h,fc) in enumerate(zip(headers,hcols)):
         c=ws2.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
     ws2.row_dimensions[5].height=40
-    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,8,9,9,11,8,9,9]
+    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,8,9,9,11,12,10,8,9,9]
     for i,w in enumerate(widths): ws2.column_dimensions[get_column_letter(i+1)].width=w
 
     cats={'DESCARTAR':0,'SECAR':0,'CONTROLAR':0,'OBSERVAR':0}
@@ -465,6 +504,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         pct_leche=str(d['pct_leche_perd'])+'%' if d['pct_leche_perd'] is not None else '--'
         pct_rcs=str(d['pct_rcs_loss'])+'%' if d['pct_rcs_loss'] is not None else '--'
         pct_tot=str(d['pct_total_lact'])+'%' if d['pct_total_lact'] is not None else '--'
+        pct_pot=str(d['pct_total_potencial'])+'%' if d['pct_total_potencial'] is not None else '--'
         pct_dias=str(d['pct_dias_hosp'])+'%' if d['pct_dias_hosp'] is not None else '--'
         pat_str=('(M) ' if d['pat_mayor'] else '(m) ')+d['pat_label'] if d['pat_label'] else '--'
         row_vals=[d['rp'],d['nro_lact'],d['estado'],'Si' if d['estado']=='R' else '',
@@ -472,7 +512,9 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
                   d['rcs_ult'],'Si' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
                   d['prod_vs'],pat_str,d['prox_sec'],d['score_bruto'],d['score_final'],d['rec'],
                   d['perd_rcs_ld'],d['litros_desc_mc'],d['total_litros_lact'],
-                  int(d['perdida_total_lact']),pct_rcs,pct_leche,pct_tot]
+                  int(d['perdida_total_lact']),
+                  d['leche_potencial'],pct_pot,
+                  pct_rcs,pct_leche,pct_tot]
         for ci,val in enumerate(row_vals,1):
             c=ws2.cell(r,ci,val); c.font=xfont(size=9)
             c.alignment=xc() if ci!=19 else xl(); c.border=xb(); c.fill=xf(bg)
@@ -638,6 +680,21 @@ document.getElementById('drop-excel').addEventListener('drop', e=>{
   const inp=document.getElementById('file-excel');
   const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files; handleExcel(inp);
 });
+</script>
+</div><!-- end app-content -->
+
+<script>
+const CREDS = {user: 'fgpuricelli', pass: '2922'};
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value.trim();
+  if(u === CREDS.user && p === CREDS.pass) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'block';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
 </script>
 </body>
 </html>

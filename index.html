@@ -13,6 +13,20 @@
   .container{max-width:760px;margin:0 auto;position:relative;z-index:1}
   .header{margin-bottom:48px}
   .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  /* LOGIN */
+  #login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+  .login-title{font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px}
+  .login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .login-field input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .2s}
+  .login-btn:hover{background:#6a9ff9}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;text-align:center;display:none}
+  #app-content{display:none}
   .header-tag::before{content:'';width:24px;height:1px;background:var(--accent)}
   h1{font-size:36px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-bottom:12px}
   h1 span{color:var(--accent)}
@@ -69,6 +83,27 @@
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Sistema de Gestion</div>
+    <div class="login-sub">Actualizador de Tambos — acceso restringido</div>
+    <div class="login-field">
+      <label>USUARIO</label>
+      <input type="text" id="login-user" autocomplete="username" placeholder="Usuario">
+    </div>
+    <div class="login-field">
+      <label>CONTRASENA</label>
+      <input type="password" id="login-pass" autocomplete="current-password" placeholder="Contrasena" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contrasena incorrectos</div>
+  </div>
+</div>
+
+<!-- APP CONTENT -->
+<div id="app-content">
 <div class="container">
   <div class="header">
     <div class="header-tag">Sistema de Gestión</div>
@@ -139,6 +174,7 @@
     <button class="btn-download" id="btn-download" onclick="downloadResult()">⬇ Descargar Excel actualizado</button>
   </div>
 </div>
+</div><!-- end app-content -->
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 <script>
@@ -658,6 +694,20 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
     return out.read(), {'updated':updated,'new_rps':new_rps,'baja_rps':baja_rps,'mc_count':mc_count,'month':detect_month(csv_filename),'filename':fname}
 
 `;
+</script>
+<script>
+// LOGIN
+const CREDS = {user: 'fgpuricelli', pass: '2922'};
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value.trim();
+  if(u === CREDS.user && p === CREDS.pass) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'block';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
 </script>
 </body>
 </html>
