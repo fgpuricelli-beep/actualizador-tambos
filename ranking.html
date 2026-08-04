@@ -150,6 +150,10 @@
         <input type="number" id="p-dias-desc" value="6" min="1" max="30">
       </div>
       <div class="param-item">
+        <label>Perdida produccion por episodio MC (kg)</label>
+        <input type="number" id="p-kg-mc" value="200" min="0" max="600">
+      </div>
+      <div class="param-item">
         <label>Precio litro de leche ($)</label>
         <input type="number" id="p-precio" value="300" min="1">
       </div>
@@ -200,7 +204,7 @@ def perdida_rcs_dia(rcs_val):
     elif rcs_val <= 3200: return 4.0
     else: return 5.0
 
-def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300, dias_descarte=6):
+def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300, dias_descarte=6, kg_perd_mc=200):
     excel_data = bytes(excel_data)
     wb = load_workbook(io.BytesIO(excel_data))
     ws = wb[wb.sheetnames[0]]
@@ -379,6 +383,10 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         litros_desc_mc = round(mc_act * dias_descarte * prod_dia_promedio, 1)
         perdida_mc = round(litros_desc_mc * precio_litro, 0)
 
+        # 1b. Perdida de produccion por MC (Rajala-Schultz 1999: ~200 kg por episodio)
+        litros_perd_prod_mc = round(mc_act * kg_perd_mc, 1)
+        perdida_prod_mc = round(litros_perd_prod_mc * precio_litro, 0)
+
         # 2. Perdida por RCS - promedio del Score Lineal de la lactancia actual
         rcs_lact_vals = [(rcs_col_dates[c], float(ws.cell(info_row,c).value))
                          for c in sorted(rcs_col_dates.keys())
@@ -397,9 +405,9 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         perd_rcs_ld = perdida_rcs_dia(rcs_ult)
         perdida_rcs_mes = round(perd_rcs_ld * 30 * precio_litro, 0)
 
-        # 3. Total lactation loss
-        total_litros_lact = round(litros_desc_mc + litros_perd_rcs_lact, 1)
-        perdida_total_lact = round(perdida_mc + perdida_rcs_lact, 0)
+        # 3. Total lactation loss (descarte MC + perdida produccion MC + perdida RCS)
+        total_litros_lact = round(litros_desc_mc + litros_perd_prod_mc + litros_perd_rcs_lact, 1)
+        perdida_total_lact = round(perdida_mc + perdida_prod_mc + perdida_rcs_lact, 0)
 
         # 4. % total perdida / Le.ACU
         pct_total_lact = round(total_litros_lact / le_acu * 100, 1) if (le_acu and le_acu > 0 and total_litros_lact > 0) else None
@@ -423,6 +431,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             'rcs_aporte':rcs_aporte,'perd_rcs_ld':perd_rcs_ld,'prod_vs':prod_vs,'pat_label':pat_label,'pat_mayor':pat_mayor,
             'prox_sec':prox_sec,'esta_prenada':esta_prenada,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
             'litros_desc_mc':litros_desc_mc,'perdida_mc':perdida_mc,
+            'litros_perd_prod_mc':litros_perd_prod_mc,'perdida_prod_mc':perdida_prod_mc,
             'litros_perd_rcs_lact':litros_perd_rcs_lact,'perdida_rcs_lact':perdida_rcs_lact,
             'total_litros_lact':total_litros_lact,'perdida_total_lact':perdida_total_lact,
             'leche_potencial':leche_potencial,'pct_total_potencial':pct_total_potencial,
@@ -460,7 +469,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
     ws2['A2'].fill=xf('E8E8E8'); ws2['A2'].alignment=xc()
     params2=[('C2','Prod. prom. (L):','D2',prom_prod),('E2','Umbral RCS:','F2',umbral_rcs),
              ('G2','Meses RCS:','H2',meses_rcs),('I2','Dias descarte:','J2',dias_descarte),
-             ('K2','Precio litro ($):','L2',precio_litro)]
+             ('K2','Kg perd/ep MC:','L2',kg_perd_mc),('M2','Precio litro ($):','N2',precio_litro)]
     for lc,lt,vc,vd in params2:
         ws2[lc]=lt; ws2[lc].font=Font(name='Arial',bold=True,size=8); ws2[lc].alignment=Alignment(horizontal='right',vertical='center')
         ws2[vc]=vd; ws2[vc].font=Font(name='Arial',bold=True,size=10,color='1F4E78')
@@ -474,7 +483,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
               ('J4:M4','RCS','1A6E3A'),('N4:N4','PRODUCCION','1A4F6E'),
               ('O4:O4','PATOGENO',PURPLE),('P4:P4','PRENEZ',TEAL),
               ('Q4:R4','PUNTAJE','2C3E50'),('S4:S4','RECOMENDACION','922B21'),
-              ('T4:Z4','IMPACTO ECONOMICO','1B4F72')]
+              ('T4:Z4','IMPACTO ECONOMICO (Rajala-Schultz 1999)','1B4F72')]
     for rng,label,color in sections:
         ws2.merge_cells(rng); c=ws2[rng.split(':')[0]]
         c.value=label; c.font=xh(8); c.fill=xf(color); c.alignment=xc()
@@ -484,15 +493,15 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
              'RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','%Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
              'Le.UC'+NL+'vs Prom.','Patogeno'+NL+'(M)=mayor','Prox.Sec'+NL+'(prenez)',
              'Score'+NL+'Bruto','Score'+NL+'Final','RECOMENDACION',
-             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','Leche'+NL+'potencial','%Perd'+NL+'vs Potencial','%Perd'+NL+'RCS/dia','%Leche'+NL+'desc.MC','%Total'+NL+'vs LeACU']
+             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','L perd.prod'+NL+'MC (RS99)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','Leche'+NL+'potencial','%Perd'+NL+'vs Potencial','%Perd'+NL+'RCS/dia','%Leche'+NL+'desc.MC','%Total'+NL+'vs LeACU']
     hcols=[BLUE,BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
            '2C3E50','2C3E50','922B21',
-           '1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72']
+           '1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72','1B4F72']
     for i,(h,fc) in enumerate(zip(headers,hcols)):
         c=ws2.cell(5,i+1,h); c.font=xh(8); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
     ws2.row_dimensions[5].height=40
-    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,8,9,9,11,12,10,8,9,9]
+    widths=[9,6,6,8,8,8,7,9,7,10,8,9,7,11,16,11,7,7,22,8,9,9,9,11,12,10,8,9,9]
     for i,w in enumerate(widths): ws2.column_dimensions[get_column_letter(i+1)].width=w
 
     cats={'DESCARTAR':0,'SECAR':0,'CONTROLAR':0,'OBSERVAR':0}
@@ -511,7 +520,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
                   d['mc_act'],d['mc_ant'],d['mc_total'],d['primer_ep'],d['mc_score'],
                   d['rcs_ult'],'Si' if d['rcs_cronico'] else '',pct_str,d['rcs_score'],
                   d['prod_vs'],pat_str,d['prox_sec'],d['score_bruto'],d['score_final'],d['rec'],
-                  d['perd_rcs_ld'],d['litros_desc_mc'],d['total_litros_lact'],
+                  d['perd_rcs_ld'],d['litros_desc_mc'],d['litros_perd_prod_mc'],d['total_litros_lact'],
                   int(d['perdida_total_lact']),
                   d['leche_potencial'],pct_pot,
                   pct_rcs,pct_leche,pct_tot]
@@ -621,6 +630,7 @@ async function runRanking() {
   const umbralRcs = parseFloat(document.getElementById('p-umbral-rcs').value) || 400;
   const mesesRcs = parseInt(document.getElementById('p-meses-rcs').value) || 3;
   const diasDesc = parseInt(document.getElementById('p-dias-desc').value) || 6;
+  const kgMC = parseFloat(document.getElementById('p-kg-mc').value) || 200;
   const precio = parseFloat(document.getElementById('p-precio').value) || 300;
 
   try {
@@ -629,11 +639,12 @@ async function runRanking() {
     pyodide.globals.set('umbral_rcs_js', umbralRcs);
     pyodide.globals.set('meses_rcs_js', mesesRcs);
     pyodide.globals.set('dias_desc_js', diasDesc);
+    pyodide.globals.set('kg_mc_js', kgMC);
     pyodide.globals.set('precio_js', precio);
 
     const resultJson = await pyodide.runPythonAsync(`
 import json
-rb, cats, pmc, prcs, total = generar_ranking(excel_data_js, prom_prod_js, umbral_rcs_js, meses_rcs_js, precio_js, dias_desc_js)
+rb, cats, pmc, prcs, total = generar_ranking(excel_data_js, prom_prod_js, umbral_rcs_js, meses_rcs_js, precio_js, dias_desc_js, kg_mc_js)
 result_bytes_py = rb
 json.dumps({'cats':cats,'pmc':pmc,'prcs':prcs,'total':total})
 `);
