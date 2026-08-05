@@ -419,6 +419,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         pct_rcs_loss = round(perd_rcs_ld / float(le_uc) * 100, 1) if (le_uc and float(le_uc) > 0 and perd_rcs_ld > 0) else None
         dias_hosp = mc_act * dias_descarte
         pct_dias_hosp = round(dias_hosp / dias_acu_float * 100, 1) if (dias_acu_float > 0 and dias_hosp > 0) else None
+        l_perd_por_dia = round(total_litros_lact / dias_acu_float, 1) if dias_acu_float > 0 else None
         rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
         prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
         if esta_prenada and score_final >= 50: rec = 'SECAR ANTICIPADO (prenada)'
@@ -440,6 +441,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             'perdida_rcs_mes':perdida_rcs_mes,
             'pct_leche_perd':pct_leche_perd,'pct_rcs_loss':pct_rcs_loss,
             'pct_total_lact':pct_total_lact,'pct_dias_hosp':pct_dias_hosp,
+            'l_perd_por_dia':l_perd_por_dia,
             'dias_acu':dias_acu,'le_acu':le_acu,'reduccion':reduccion})
 
     total_cs = sum(d['rcs_aporte'] for d in all_rows)
@@ -495,7 +497,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
              'RCS'+NL+'Ult.Ctrl.','RCS'+NL+'Cronico','%Aporte'+NL+'Tanque','Ptos'+NL+'RCS',
              'Le.UC'+NL+'vs Prom.','Patogeno'+NL+'(M)=mayor','Prox.Sec'+NL+'(prenez)',
              'Score'+NL+'Bruto','Score'+NL+'Final','RECOMENDACION',
-             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','L perd.prod'+NL+'MC (RS99)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','Leche'+NL+'potencial','%Perd'+NL+'vs Potencial','%Leche'+NL+'desc.MC','%Total'+NL+'vs LeACU']
+             'L/dia'+NL+'perd.RCS','L desc.MC'+NL+'(lact.act)','L perd.prod'+NL+'MC (RS99)','Total L'+NL+'perd.lact','Perdida'+NL+'total ($)','Leche'+NL+'potencial','%Perd'+NL+'vs Potencial','%Leche'+NL+'desc.MC','L perd.'+NL+'por dia']
     hcols=[BLUE,BLUE,BLUE,BLUE,'8B3626','8B3626','8B3626','8B3626','8B3626',
            '1A6E3A','1A6E3A','1A6E3A','1A6E3A','1A4F6E',PURPLE,TEAL,
            '2C3E50','2C3E50','922B21',
@@ -513,8 +515,8 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         r=i+6; bg=GREY if r%2==0 else WHITE
         pct_str=str(d['pct_aporte'])+'%' if d['pct_aporte']>0 else '--'
         pct_leche=str(d['pct_leche_perd'])+'%' if d['pct_leche_perd'] is not None else '--'
-        pct_tot=str(d['pct_total_lact'])+'%' if d['pct_total_lact'] is not None else '--'
         pct_pot=str(d['pct_total_potencial'])+'%' if d['pct_total_potencial'] is not None else '--'
+        l_dia=str(d['l_perd_por_dia']) if d['l_perd_por_dia'] is not None else '--'
         pat_str=('(M) ' if d['pat_mayor'] else '(m) ')+d['pat_label'] if d['pat_label'] else '--'
         row_vals=[d['rp'],d['nro_lact'],d['estado'],'Si' if d['estado']=='R' else '',
                   d['mc_act'],d['mc_ant'],d['mc_total'],d['primer_ep'],d['mc_score'],
@@ -523,7 +525,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
                   d['perd_rcs_ld'],d['litros_desc_mc'],d['litros_perd_prod_mc'],d['total_litros_lact'],
                   int(d['perdida_total_lact']),
                   d['leche_potencial'],pct_pot,
-                  pct_leche,pct_tot]
+                  pct_leche,l_dia]
         for ci,val in enumerate(row_vals,1):
             c=ws2.cell(r,ci,val); c.font=xfont(size=9)
             c.alignment=xc() if ci!=19 else xl(); c.border=xb(); c.fill=xf(bg)
