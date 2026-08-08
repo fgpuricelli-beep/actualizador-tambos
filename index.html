@@ -562,6 +562,42 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         updated+=1
 
     mc_count=0
+
+    # Calcular altas ANTES de procesar MC para que las vaquillonas nuevas reciban sus mastitis
+    csv_rps=set(csv_map.keys())
+    all_csv_rps=set()
+    for row in csv_rows:
+        rp=normalize_rp(row.get('RP',''))
+        if rp: all_csv_rps.add(rp)
+    new_rps=sorted(csv_rps-db_rps)
+    baja_rps=sorted(db_rps-all_csv_rps)
+
+    if new_rps:
+        last_row=header_row
+        for r in range(data_start,ws.max_row+1):
+            if ws.cell(r,1).value is not None: last_row=r
+        new_row=last_row+1
+        for rp in new_rps:
+            d=csv_map[rp]
+            rp_display=csv_map_display.get(rp,rp)
+            rp_write=int(rp_display) if rp_display.lstrip('-').isdigit() else rp_display
+            ws.cell(new_row,1).value=rp_write
+            ws.cell(new_row,2).value=d['IniLact']
+            if cols['rcs']: ws.cell(new_row,cols['rcs']).value=d['ReUC']
+            ws.cell(new_row,cols['summary_rp']).value=rp_write
+            if cols['nro_lact']: ws.cell(new_row,cols['nro_lact']).value=d['NroLact']
+            if cols['ini_lact']: ws.cell(new_row,cols['ini_lact']).value=d['IniLact']
+            if cols['dias_acu']: ws.cell(new_row,cols['dias_acu']).value=d['DiasACU']
+            if cols['le_uc']: ws.cell(new_row,cols['le_uc']).value=d['LeUC']
+            if cols['le_ca']: ws.cell(new_row,cols['le_ca']).value=d['LeCA']
+            if cols['re_ca']: ws.cell(new_row,cols['re_ca']).value=d['ReCA']
+            if cols['prox_secado']: ws.cell(new_row,cols['prox_secado']).value=d['ProxSecado']
+            if cols['estado']: ws.cell(new_row,cols['estado']).value=d['Estado']
+            if cols['est_actual']: ws.cell(new_row,cols['est_actual']).value=d['EstActual']
+            if cols['le_acu']: ws.cell(new_row,cols['le_acu']).value=d['LeACU']
+            if cols['tambo']: ws.cell(new_row,cols['tambo']).value=d['Tambo']
+            db_rows[rp]=new_row  # registrar en db_rows para que MC las encuentre
+            new_row+=1
     mc_rows=read_csv_bytes(mc_data) if mc_data else []
     if mc_rows:
         mc_groups={}  # rp -> {month_key: set of date objects}
@@ -656,32 +692,6 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         rows_to_delete = sorted([db_rows[rp] for rp in baja_rps], reverse=True)
         for r in rows_to_delete:
             ws.delete_rows(r)
-
-    if new_rps:
-        last_row=header_row
-        for r in range(data_start,ws.max_row+1):
-            if ws.cell(r,1).value is not None: last_row=r
-        new_row=last_row+1
-        for rp in new_rps:
-            d=csv_map[rp]
-            rp_display = csv_map_display.get(rp, rp)
-            rp_write = int(rp_display) if rp_display.lstrip('-').isdigit() else rp_display
-            ws.cell(new_row,1).value=rp_write
-            ws.cell(new_row,2).value=d['IniLact']
-            if cols['rcs']: ws.cell(new_row,cols['rcs']).value=d['ReUC']
-            ws.cell(new_row,cols['summary_rp']).value=rp_write
-            if cols['nro_lact']: ws.cell(new_row,cols['nro_lact']).value=d['NroLact']
-            if cols['ini_lact']: ws.cell(new_row,cols['ini_lact']).value=d['IniLact']
-            if cols['dias_acu']: ws.cell(new_row,cols['dias_acu']).value=d['DiasACU']
-            if cols['le_uc']: ws.cell(new_row,cols['le_uc']).value=d['LeUC']
-            if cols['le_ca']: ws.cell(new_row,cols['le_ca']).value=d['LeCA']
-            if cols['re_ca']: ws.cell(new_row,cols['re_ca']).value=d['ReCA']
-            if cols['prox_secado']: ws.cell(new_row,cols['prox_secado']).value=d['ProxSecado']
-            if cols['estado']: ws.cell(new_row,cols['estado']).value=d['Estado']
-            if cols['est_actual']: ws.cell(new_row,cols['est_actual']).value=d['EstActual']
-            if cols['le_acu']: ws.cell(new_row,cols['le_acu']).value=d['LeACU']
-            if cols['tambo']: ws.cell(new_row,cols['tambo']).value=d['Tambo']
-            new_row+=1
 
     out=io.BytesIO()
     wb.save(out)
