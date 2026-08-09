@@ -359,8 +359,18 @@ def read_csv_bytes(data):
     if data is None: return []
     if hasattr(data, 'tobytes'): data = data.tobytes()
     text = data.decode('latin1')
-    sep = ';' if text.split('\\n',1)[0].count(';') > text.split('\\n',1)[0].count(',') else ','
-    reader = csvmod.DictReader(io.StringIO(text), delimiter=sep)
+    lines = text.split('\n')
+    sep = ';' if text.split('\n',1)[0].count(';') > text.split('\n',1)[0].count(',') else ','
+    # Auto-detect header row: find first row that contains 'RP' as a field
+    header_line = 0
+    for i, line in enumerate(lines):
+        fields = [f.strip().strip('"') for f in line.split(sep)]
+        if 'RP' in fields:
+            header_line = i
+            break
+    # Rebuild text from header row onwards
+    clean_text = '\n'.join(lines[header_line:])
+    reader = csvmod.DictReader(io.StringIO(clean_text), delimiter=sep)
     return [{(k.strip() if k else k): (v.strip() if isinstance(v,str) else v) for k,v in row.items()} for row in reader]
 
 def detect_month(filename):
