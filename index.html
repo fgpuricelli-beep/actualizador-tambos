@@ -543,7 +543,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         rp = normalize_rp(row.get('RP',''))
         if rp is None: continue
         csv_map[rp]={'Estado':row.get('Estado',''),'EstActual':row.get('Est.Actual',''),
-            'NroLact':clean_num(row.get('Nro.Lact')),'IniLact':clean_date(row.get('Ini.Lact')),
+            'NroLact':clean_num(row.get('Nro.Lact') or row.get('Lact.')),'IniLact':clean_date(row.get('Ini.Lact')),
             'LeUC':clean_num(row.get('Le.UC')),'ReUC':clean_num(row.get('Re.UC')),
             'LeCA':clean_num(row.get('Le.CA')),'ReCA':clean_num(row.get('Re.CA')),
             'ProxSecado':clean_date(row.get('Prox.Secado')),
