@@ -359,8 +359,9 @@ def read_csv_bytes(data):
     if data is None: return []
     if hasattr(data, 'tobytes'): data = data.tobytes()
     text = data.decode('latin1')
-    lines = text.split('\n')
-    sep = ';' if text.split('\n',1)[0].count(';') > text.split('\n',1)[0].count(',') else ','
+    NL = chr(10)
+    lines = text.split(NL)
+    sep = ';' if text.split(NL,1)[0].count(';') > text.split(NL,1)[0].count(',') else ','
     # Auto-detect header row: find first row that contains 'RP' as a field
     header_line = 0
     for i, line in enumerate(lines):
@@ -369,7 +370,7 @@ def read_csv_bytes(data):
             header_line = i
             break
     # Rebuild text from header row onwards
-    clean_text = '\n'.join(lines[header_line:])
+    clean_text = NL.join(lines[header_line:])
     reader = csvmod.DictReader(io.StringIO(clean_text), delimiter=sep)
     return [{(k.strip() if k else k): (v.strip() if isinstance(v,str) else v) for k,v in row.items()} for row in reader]
 
