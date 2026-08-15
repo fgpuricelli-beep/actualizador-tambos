@@ -217,8 +217,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         v = ws.cell(header_row, c).value
         if isinstance(v, datetime.datetime): mc_col_dates[c] = v.date()
         elif mc_col_dates: break
-    target = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA','Prox.Secado','Estado','Est.Actual','Tambo','Le.ACU'}
-    anchor_col = None
+    target = {'RP','Nro.Lact','Ini.Lact','Dias ACU','Le.UC','Le.CA','Re.UC','Re.CA','Prox.Secado','Estado','Est.Actual','Tambo','Le.ACU'}    anchor_col = None
     for c in range(2, ws.max_column+1):
         v = ws.cell(header_row, c).value
         if v and str(v).strip() == 'Est.Actual': anchor_col = c; break
@@ -299,6 +298,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         prox_sec_raw = ws.cell(info_row, found.get('Prox.Secado',0)).value if found.get('Prox.Secado') else None
         prox_sec = prox_sec_raw.date() if isinstance(prox_sec_raw, datetime.datetime) else prox_sec_raw
         estado = str(ws.cell(info_row, found.get('Estado',0)).value or '').strip() if found.get('Estado') else ''
+        est_actual = str(ws.cell(info_row, found.get('Est.Actual',0)).value or '').strip() if found.get('Est.Actual') else ''
         obs = ws.cell(info_row, obs_col).value if obs_col else None
         le_acu = None
         if le_acu_raw is not None:
@@ -422,14 +422,20 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         l_perd_por_dia = round(total_litros_lact / dias_acu_float, 1) if dias_acu_float > 0 else None
         rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
         prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
-        if esta_prenada and score_final >= 50: rec = 'SECAR ANTICIPADO (prenada)'
+
+        # Detectar si la vaca esta seca - chequear Est.Actual y Estado
+        esta_seca = 'seca' in est_actual.lower() or str(estado).strip().upper() == 'S'
+
+        if esta_seca:
+            rec = 'SECA'
+        elif esta_prenada and score_final >= 50: rec = 'SECAR ANTICIPADO (prenada)'
         elif esta_prenada and score_final >= 30: rec = 'CONTROLAR (prenada)'
         elif score_final >= 70: rec = 'DESCARTAR'
         elif score_final >= 50: rec = 'EVALUAR DESCARTE'
         elif score_final >= 30: rec = 'CONTROLAR'
         else: rec = 'OBSERVAR'
-        if reduccion > 0 and 'prenada' not in rec: rec += ' (prenez -' + str(reduccion) + ')'
-        all_rows.append({'rp':rp,'nro_lact':nro_lact,'estado':estado,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
+        if reduccion > 0 and 'prenada' not in rec and rec != 'SECA': rec += ' (prenez -' + str(reduccion) + ')'
+        all_rows.append({'rp':rp,'nro_lact':nro_lact,'estado':estado,'esta_seca':esta_seca,'mc_act':mc_act,'mc_ant':mc_ant,'mc_total':mc_total,
             'primer_ep':primer_ep,'mc_score':mc_score,'rcs_ult':rcs_ult,'rcs_cronico':rcs_cronico,'rcs_score':rcs_score,
             'rcs_aporte':rcs_aporte,'perd_rcs_ld':perd_rcs_ld,'prod_vs':prod_vs,'pat_label':pat_label,'pat_mayor':pat_mayor,
             'prox_sec':prox_sec,'esta_prenada':esta_prenada,'score_bruto':score_bruto,'score_final':score_final,'rec':rec,
@@ -540,6 +546,13 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         elif 'EVALUAR DESCARTE' in rec_str: rc.fill=xf('F5CBA7'); rc.font=Font(name='Arial',bold=True,color='784212',size=9); cats['SECAR']+=1
         elif 'SECAR' in rec_str: rc.fill=xf(ORANGE_LT); rc.font=Font(name='Arial',bold=True,color=ORANGE,size=9); cats['SECAR']+=1
         elif 'CONTROLAR' in rec_str: rc.fill=xf(YELLOW); rc.font=Font(name='Arial',bold=True,color='8B6914',size=9); cats['CONTROLAR']+=1
+        elif rec_str == 'SECA':
+            rc.fill=xf('D5D8DC'); rc.font=Font(name='Arial',bold=True,color='566573',size=9)
+            # Grey out the whole row for dry cows
+            for col in range(1, len(row_vals)+1):
+                ws2.cell(r,col).fill=xf('EAECEE')
+                ws2.cell(r,col).font=Font(name='Arial',size=9,color='808B96')
+            cats['OBSERVAR']+=1
         else: rc.fill=xf(GREEN_LT); rc.font=Font(name='Arial',bold=True,color=GREEN,size=9); cats['OBSERVAR']+=1
         if d['estado']=='R':
             ws2.cell(r,4).fill=xf(ORANGE_LT); ws2.cell(r,4).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
