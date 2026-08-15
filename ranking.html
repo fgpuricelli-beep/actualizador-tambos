@@ -424,8 +424,8 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         rcs_aporte = (rcs_ult * float(le_uc)) if (rcs_ult and le_uc) else 0
         prod_vs = str(int(le_uc)) + 'L (' + str(int(float(le_uc)/prom_prod*100)) + '%)' if le_uc else '--'
 
-        # Detectar si la vaca esta seca - chequear Est.Actual y Estado
-        esta_seca = 'seca' in est_actual.lower() or str(estado).strip().upper() == 'S'
+        # Detectar si la vaca esta seca - chequear Est.Actual (S/Seca) y Estado (S)
+        esta_seca = 'seca' in est_actual.lower() or est_actual.strip().upper() == 'S' or str(estado).strip().upper() == 'S'
 
         if esta_seca:
             rec = 'SECA'
