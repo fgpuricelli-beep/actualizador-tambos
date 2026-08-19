@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis Mensual - Tambos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+  :root{--bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3050;--accent:#4f8ef7;--accent2:#38d9a9;--danger:#ff6b6b;--warn:#ffa94d;--text:#e8eaf2;--text2:#8892b0;--text3:#4a5580}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;padding:40px 20px}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0}
+  .container{max-width:720px;margin:0 auto;position:relative;z-index:1}
+  .header{margin-bottom:40px}
+  .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .header-tag::before{content:'';width:24px;height:1px;background:var(--accent)}
+  h1{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-bottom:10px}
+  h1 span{color:var(--accent)}
+  .subtitle{color:var(--text2);font-size:14px;font-weight:300;line-height:1.6}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;transition:border-color .2s}
+  .card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 32px rgba(79,142,247,.08)}
+  .card.done{border-color:var(--accent2)}
+  .card-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .step-num{width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;color:var(--text2);flex-shrink:0}
+  .card.done .step-num{background:var(--accent2);border-color:var(--accent2);color:#0f1117;font-weight:700}
+  .card-title{font-size:15px;font-weight:600}
+  .card-desc{font-size:12px;color:var(--text2);font-weight:300;margin-top:2px}
+  .drop-zone{border:1.5px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative}
+  .drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.05)}
+  .drop-zone.loaded{border-color:var(--accent2);border-style:solid;background:rgba(56,217,169,.05)}
+  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .drop-icon{font-size:28px;margin-bottom:8px}
+  .drop-label{font-size:13px;color:var(--text2)}
+  .drop-label strong{color:var(--accent)}
+  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
+  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px)}
+  .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .result-box{background:var(--surface);border:1px solid var(--accent2);border-radius:12px;padding:28px;margin-top:20px;display:none}
+  .result-box.visible{display:block}
+  .result-title{font-size:16px;font-weight:700;color:var(--accent2);margin-bottom:16px}
+  .btn-dl{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-dl:hover{background:rgba(56,217,169,.1)}
+  .error-box{background:rgba(255,107,107,.08);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:13px;color:var(--danger);margin-top:12px;display:none}
+  .error-box.visible{display:block}
+  .py-status{text-align:center;padding:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px;margin-bottom:20px}
+  .py-status.ready{color:var(--accent2)}.py-status.loading{color:var(--warn)}.py-status.error{color:var(--danger)}
+  .info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px;display:none}
+  .info-box.visible{display:block}
+  .info-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
+  .info-row:last-child{border-bottom:none}
+  .info-label{color:var(--text2);font-family:'DM Mono',monospace}
+  .info-val{color:var(--text);font-weight:600}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  #login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+  .login-title{font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px}
+  .login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .login-field input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
+  .login-btn:hover{background:#6a9ff9}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;text-align:center;display:none}
+  #app-content{display:none}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Sistema de Gestion</div>
+    <div class="login-sub">Analisis Mensual — acceso restringido</div>
+    <div class="login-field">
+      <label>USUARIO</label>
+      <input type="text" id="login-user" placeholder="Usuario" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>CONTRASENA</label>
+      <input type="password" id="login-pass" placeholder="Contrasena" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contrasena incorrectos</div>
+  </div>
+</div>
+
+<div id="app-content">
+<div class="container">
+  <div class="header">
+    <div class="header-tag">Sistema de Gestion</div>
+    <h1>Analisis<br><span>Mensual</span></h1>
+    <p class="subtitle">Subi la base actualizada y genera el analisis mensual completo: RCS, Resultado, MC vs DEL y Secado — por tambo y total.</p>
+  </div>
+
+  <div class="py-status loading" id="py-status">Cargando motor Python... (puede tardar ~30 segundos)</div>
+
+  <div class="card active" id="card1">
+    <div class="card-header">
+      <div class="step-num" id="num1">1</div>
+      <div><div class="card-title">Base de datos actualizada</div><div class="card-desc">Excel con el ultimo control lechero cargado</div></div>
+    </div>
+    <div class="drop-zone" id="drop-excel">
+      <input type="file" id="file-excel" accept=".xlsx,.xls" onchange="handleExcel(this)">
+      <div class="drop-icon">📊</div>
+      <div class="drop-label" id="label-excel">Hace clic o arrastra el <strong>Excel</strong> aca</div>
+    </div>
+    <div class="info-box" id="info-excel">
+      <div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="excel-name">--</span></div>
+      <div class="info-row"><span class="info-label">Tambos detectados</span><span class="info-val" id="excel-tambos">--</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="card2">
+    <div class="card-header">
+      <div class="step-num" id="num2">2</div>
+      <div><div class="card-title">Generar Analisis</div><div class="card-desc">RCS mensual, Resultado, MC vs DEL, Analisis de Secado</div></div>
+    </div>
+    <button class="btn-run" id="btn-run" disabled onclick="runAnalisis()">
+      <span id="btn-text">Generar Analisis</span>
+    </button>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <div class="result-box" id="result-box">
+    <div class="result-title">Analisis generado correctamente</div>
+    <div id="result-summary" style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.8;font-family:'DM Mono',monospace"></div>
+    <div style="height:1px;background:var(--border);margin:16px 0"></div>
+    <button class="btn-dl" onclick="downloadResult()">Descargar Excel de Analisis</button>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+let pyodide = null, pyReady = false, excelBytes = null, resultBytes = null;
+
+const PYTHON_CODE = `
+import io, datetime, math
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from collections import defaultdict
+
+def sl_calc(rcs):
+    if rcs <= 0: return 0
+    return max(0, math.log(rcs / 100) / 0.693147 + 3)
+
+def xf(c): return PatternFill('solid', fgColor=c)
+def xb():
+    s=Side(style='thin',color='CCCCCC')
+    return Border(left=s,right=s,top=s,bottom=s)
+def xc(): return Alignment(horizontal='center',vertical='center',wrap_text=True)
+def xl(): return Alignment(horizontal='left',vertical='center')
+def xh(color='FFFFFF',size=9,bold=True): return Font(name='Arial',bold=bold,color=color,size=size)
+
+BLUE='1F4E78'; WHITE='FFFFFF'; YELLOW='FFF2CC'; GREY='F2F3F4'
+RED='C0392B'; RED_LT='FADBD8'; ORANGE='E67E22'; ORANGE_LT='FDEBD0'
+GREEN='1E8449'; GREEN_LT='D5F5E3'
+
+def parse_base(excel_data):
+    wb = load_workbook(io.BytesIO(bytes(excel_data)))
+    ws = wb[wb.sheetnames[0]]
+    header_row = 5
+    for r in range(1, 11):
+        if str(ws.cell(r,1).value or '').strip() == 'RP': header_row = r; break
+    data_start = header_row + 1
+
+    target = {'Nro.Lact','Dias ACU','Le.UC','Re.UC','Est.Actual','Tambo','Ini.Lact','Prox.Secado'}
+    anchor_col = None
+    for c in range(2, ws.max_column+1):
+        v = ws.cell(header_row, c).value
+        if v and str(v).strip() == 'Est.Actual': anchor_col = c; break
+    found = {}
+    if anchor_col:
+        for c in range(max(2,anchor_col-15), min(ws.max_column,anchor_col+8)):
+            v = ws.cell(header_row, c).value
+            if v and str(v).strip() in target and str(v).strip() not in found:
+                found[str(v).strip()] = c
+
+    mc_col_dates = {}
+    for c in range(2, ws.max_column+1):
+        v = ws.cell(header_row, c).value
+        if isinstance(v, datetime.datetime): mc_col_dates[c] = v.date()
+        elif mc_col_dates: break
+    mc_max = max(mc_col_dates.keys()) if mc_col_dates else 0
+    sum_min = min(found.values()) if found else ws.max_column
+
+    rcs_col_dates = {}
+    rcs_start = None
+    for c in range(mc_max+2, sum_min):
+        v = ws.cell(header_row-1, c).value
+        if v and 'RCS' in str(v).upper(): rcs_start = c; break
+    if rcs_start:
+        for c in range(rcs_start, sum_min):
+            v = ws.cell(header_row, c).value
+            if isinstance(v, datetime.datetime): rcs_col_dates[c] = v.date()
+    else:
+        date_blocks = []; cb = []
+        for c in range(mc_max+2, sum_min):
+            v = ws.cell(header_row, c).value
+            if isinstance(v, datetime.datetime): cb.append((c, v.date()))
+            elif cb: date_blocks.append(cb); cb = []
+        if cb: date_blocks.append(cb)
+        if date_blocks:
+            for c, d in date_blocks[-1]: rcs_col_dates[c] = d
+
+    rcs_sorted = sorted(rcs_col_dates.keys(), key=lambda c: rcs_col_dates[c])
+    col_act = rcs_sorted[-1] if len(rcs_sorted) >= 1 else None
+    col_ant = rcs_sorted[-2] if len(rcs_sorted) >= 2 else None
+
+    NL = chr(10)
+    vacas = []
+    for r in range(data_start, ws.max_row+1):
+        rp = ws.cell(r,1).value
+        if rp is None: continue
+        tambo = str(ws.cell(r, found.get('Tambo',0)).value or '').strip() if found.get('Tambo') else 'SIN TAMBO'
+        est = str(ws.cell(r, found.get('Est.Actual',0)).value or '').strip() if found.get('Est.Actual') else ''
+        nl = ws.cell(r, found.get('Nro.Lact',0)).value if found.get('Nro.Lact') else None
+        dias = ws.cell(r, found.get('Dias ACU',0)).value if found.get('Dias ACU') else None
+        le = ws.cell(r, found.get('Le.UC',0)).value if found.get('Le.UC') else None
+        re = ws.cell(r, found.get('Re.UC',0)).value if found.get('Re.UC') else None
+        ini_lact = ws.cell(r, found.get('Ini.Lact',0)).value if found.get('Ini.Lact') else None
+        rcs_act = ws.cell(r, col_act).value if col_act else re
+        rcs_ant = ws.cell(r, col_ant).value if col_ant else None
+        if rcs_act is None: rcs_act = re
+
+        # MC first event DEL in current lactation
+        mc_first_del = None
+        if ini_lact:
+            ini_date = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
+            for col in sorted(mc_col_dates.keys()):
+                cell = ws.cell(r, col)
+                if cell.value is not None:
+                    ev_date = cell.value.date() if isinstance(cell.value, datetime.datetime) else mc_col_dates[col]
+                    if ev_date >= ini_date:
+                        mc_first_del = (ev_date - ini_date).days
+                        break
+
+        # First RCS of current lactation (for vaquillonas analysis)
+        first_rcs = None
+        if ini_lact:
+            ini_date2 = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
+            for c in rcs_sorted:
+                if rcs_col_dates[c] >= ini_date2:
+                    v2 = ws.cell(r, c).value
+                    if v2 is not None:
+                        try: first_rcs = float(v2); break
+                        except: pass
+
+        try:
+            le_f=float(le) if le else 0
+            re_f=float(re) if re else 0
+            rcs_act_f=float(rcs_act) if rcs_act else 0
+            rcs_ant_f=float(rcs_ant) if rcs_ant is not None else None
+            dias_f=float(dias) if dias else 0
+            nl_i=int(nl) if nl else 0
+        except: continue
+
+        is_seca = 'seca' in est.lower() or est.upper() == 'S'
+
+        # NI classification
+        ni = None
+        if rcs_ant_f is not None and rcs_act_f > 0:
+            if rcs_ant_f < 200 and rcs_act_f > 200: ni='NI'
+            elif rcs_ant_f > 200 and rcs_act_f < 200: ni='AC'
+            elif rcs_ant_f > 200 and rcs_act_f > 200: ni='C'
+            elif rcs_ant_f < 200 and rcs_act_f < 200: ni='S'
+
+        vacas.append({'rp':rp,'tambo':tambo,'nl':nl_i,'dias':dias_f,'le':le_f,'re':re_f,
+                      'rcs_act':rcs_act_f,'rcs_ant':rcs_ant_f,'ni':ni,
+                      'is_seca':is_seca,'is_vq':nl_i==1,
+                      'mc_first_del':mc_first_del,'first_rcs':first_rcs})
+
+    tambos_list = sorted(set(v['tambo'] for v in vacas))
+    return vacas, tambos_list
+
+def calc_resultado(vacas_grupo):
+    en_ordeno = [v for v in vacas_grupo if not v['is_seca']]
+    if not en_ordeno: return {}
+    n=len(en_ordeno); lt=sum(v['le'] for v in en_ordeno)
+    le_pr=lt/n if n>0 else 0
+    del_pr=sum(v['dias'] for v in en_ordeno)/n if n>0 else 0
+    rcs_pr=sum(v['re']*v['le'] for v in en_ordeno)/lt if lt>0 else 0
+    n_rcs=sum(1 for v in en_ordeno if v['rcs_act']>0)
+    n_s200=sum(1 for v in en_ordeno if v['rcs_act']>200)
+    prev=n_s200/n_rcs if n_rcs>0 else 0
+    n_exp=sum(1 for v in en_ordeno if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
+    n_ni=sum(1 for v in en_ordeno if v['ni']=='NI')
+    tni=n_ni/n_exp if n_exp>0 else 0
+    pni=n_ni/n_s200 if n_s200>0 else 0
+    vqs=[v for v in en_ordeno if v['is_vq']]; nvq=len(vqs)
+    lt_vq=sum(v['le'] for v in vqs)
+    le_vq=lt_vq/nvq if nvq>0 else 0
+    del_vq=sum(v['dias'] for v in vqs)/nvq if nvq>0 else 0
+    rcs_vq=sum(v['re']*v['le'] for v in vqs)/lt_vq if lt_vq>0 else 0
+    n_vqs200=sum(1 for v in vqs if v['rcs_act']>200)
+    n_vqrcs=sum(1 for v in vqs if v['rcs_act']>0)
+    prev_vq=n_vqs200/n_vqrcs if n_vqrcs>0 else 0
+    n_vqexp=sum(1 for v in vqs if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
+    n_vqni=sum(1 for v in vqs if v['ni']=='NI')
+    tni_vq=n_vqni/n_vqexp if n_vqexp>0 else 0
+    # First RCS vaquillonas
+    vq_first=[v['first_rcs'] for v in vqs if v['first_rcs'] is not None]
+    n_vq_fr=len(vq_first)
+    n_vq_fr200=sum(1 for x in vq_first if x>200)
+    prev_vq_fr=n_vq_fr200/n_vq_fr if n_vq_fr>0 else 0
+    return {'n':n,'le_pr':round(le_pr,1),'del_pr':round(del_pr,0),'rcs_pr':round(rcs_pr,0),
+            'n_s200':n_s200,'prev':round(prev*100,1),'n_exp':n_exp,'n_ni':n_ni,
+            'tni':round(tni*100,1),'pni':round(pni*100,1),
+            'nvq':nvq,'le_vq':round(le_vq,1),'del_vq':round(del_vq,0),'rcs_vq':round(rcs_vq,0),
+            'n_vqs200':n_vqs200,'prev_vq':round(prev_vq*100,1),'n_vqni':n_vqni,'tni_vq':round(tni_vq*100,1),
+            'n_vq_fr':n_vq_fr,'n_vq_fr200':n_vq_fr200,'prev_vq_fr':round(prev_vq_fr*100,1)}
+
+def generar_resultado_sheet(wb_out, vacas, tambos_list):
+    NL=chr(10)
+    if 'Resultado' in wb_out.sheetnames: del wb_out['Resultado']
+    ws=wb_out.create_sheet('Resultado')
+    ws.column_dimensions['A'].width=4
+    ws.column_dimensions['B'].width=30
+    grupos = [(t, [v for v in vacas if v['tambo']==t]) for t in tambos_list]
+    if len(tambos_list) > 1: grupos.append(('TOTAL', vacas))
+
+    col_start = 2
+    for tambo, grupo in grupos:
+        r_dat = calc_resultado(grupo)
+        if not r_dat: continue
+        c = col_start
+        ws.column_dimensions[get_column_letter(c)].width = 14
+        ws.cell(1, c, tambo).font=Font(name='Arial',bold=True,color=WHITE,size=11)
+        ws.cell(1, c).fill=xf(BLUE); ws.cell(1, c).alignment=xc(); ws.cell(1, c).border=xb()
+        ws.row_dimensions[1].height=24
+
+        filas = [
+            (2,'GENERAL','header'),
+            (3,'Vc en ordeno',r_dat['n']),
+            (4,'Litros/vaca',r_dat['le_pr']),
+            (5,'DEL promedio',r_dat['del_pr']),
+            (6,'RCS ponderado',r_dat['rcs_pr']),
+            (7,'Nro Vc >200 CS',r_dat['n_s200']),
+            (8,'Prevalencia >200 CS',str(r_dat['prev'])+'%'),
+            (9,'Vacas expuestas (ant <200)',r_dat['n_exp']),
+            (10,'Nro Vc con NI',r_dat['n_ni']),
+            (11,'Tasa NI probables',str(r_dat['tni'])+'%'),
+            (12,'%NI / >200 CS',str(r_dat['pni'])+'%'),
+            (13,'',''),
+            (14,'VAQUILLONAS','header'),
+            (15,'N vaquillonas',r_dat['nvq']),
+            (16,'Litros prom. Vaq',r_dat['le_vq']),
+            (17,'DEL prom. Vaq',r_dat['del_vq']),
+            (18,'RCS prom. Vaq',r_dat['rcs_vq']),
+            (19,'% vaq >200 CS',str(r_dat['prev_vq'])+'%'),
+            (20,'N NI vaquillonas',r_dat['n_vqni']),
+            (21,'Tasa NI vaquillonas',str(r_dat['tni_vq'])+'%'),
+            (22,'',''),
+            (23,'PRIMER CONTROL VAQUILLONAS','header'),
+            (24,'N vaq con 1er control',r_dat['n_vq_fr']),
+            (25,'N vaq >200 en 1er ctrl',r_dat['n_vq_fr200']),
+            (26,'% vaq >200 en 1er ctrl',str(r_dat['prev_vq_fr'])+'%'),
+        ]
+        for row_n, label, val in filas:
+            if label=='header':
+                ws.cell(row_n, c, val)
+                ws.cell(row_n, c).font=Font(name='Arial',bold=True,color=WHITE,size=9)
+                ws.cell(row_n, c).fill=xf('2C3E50'); ws.cell(row_n, c).alignment=xc(); ws.cell(row_n, c).border=xb()
+            else:
+                ws.cell(row_n, 2, label)
+                ws.cell(row_n, 2).font=Font(name='Arial',size=9); ws.cell(row_n, 2).alignment=xl()
+                ws.cell(row_n, 2).border=xb()
+                ws.cell(row_n, c, val)
+                ws.cell(row_n, c).font=Font(name='Arial',bold=True,size=10,color='1F4E78')
+                ws.cell(row_n, c).fill=xf(YELLOW); ws.cell(row_n, c).alignment=xc(); ws.cell(row_n, c).border=xb()
+            ws.row_dimensions[row_n].height=18
+        col_start += 1
+
+def generar_analisis_rcs_sheet(wb_out, vacas, tambos_list):
+    NL=chr(10)
+    if 'Analisis RCS' in wb_out.sheetnames: del wb_out['Analisis RCS']
+    ws=wb_out.create_sheet('Analisis RCS')
+    hdrs=['RP','Lact.','DEL','Le.UC'+NL+'(L/dia)','RCS'+NL+'(x1000)','Score'+NL+'Lineal',
+          'CS/vaca'+NL+'(x1000)','% Aporte'+NL+'Tambo','Tambo','NI/AC/C/S']
+    hcols=[BLUE,BLUE,BLUE,BLUE,'1A6E3A','1A6E3A','1A4F6E','1A4F6E',BLUE,BLUE]
+    widths=[9,6,6,9,10,9,11,10,10,8]
+    for i,(h,fc) in enumerate(zip(hdrs,hcols)):
+        c=ws.cell(1,i+1,h); c.font=xh(); c.fill=xf(fc); c.alignment=xc(); c.border=xb()
+    ws.row_dimensions[1].height=36
+    for i,w in enumerate(widths): ws.column_dimensions[get_column_letter(i+1)].width=w
+
+    en_ordeno = [v for v in vacas if not v['is_seca'] and v['rcs_act']>0]
+    en_ordeno.sort(key=lambda x: x['rcs_act'], reverse=True)
+
+    for tambo in tambos_list:
+        tot_cs = sum(v['rcs_act']*v['le'] for v in en_ordeno if v['tambo']==tambo and v['le']>0)
+        for i,v in enumerate(en_ordeno):
+            if v['tambo']!=tambo: continue
+            pass
+
+    # Global sort by RCS
+    tot_cs_all = sum(v['rcs_act']*v['le'] for v in en_ordeno if v['le']>0)
+    # Per tambo total CS
+    tot_cs_tambo = {}
+    for t in tambos_list:
+        tot_cs_tambo[t] = sum(v['rcs_act']*v['le'] for v in en_ordeno if v['tambo']==t and v['le']>0)
+
+    for i,v in enumerate(en_ordeno):
+        r=i+2; bg=GREY if r%2==0 else WHITE
+        sl_v=sl_calc(v['rcs_act'])
+        cs_v=v['rcs_act']*v['le']
+        tot_t=tot_cs_tambo.get(v['tambo'],1)
+        pct=cs_v/tot_t*100 if tot_t>0 else 0
+        row_vals=[v['rp'],v['nl'],int(v['dias']),round(v['le'],1),round(v['rcs_act'],0),
+                  round(sl_v,2),round(cs_v,0),round(pct,2),v['tambo'],v['ni'] or '']
+        for ci,val in enumerate(row_vals,1):
+            c=ws.cell(r,ci,val); c.font=Font(name='Arial',size=9)
+            c.alignment=xc(); c.border=xb(); c.fill=xf(bg)
+        if v['rcs_act']>1000:
+            ws.cell(r,5).fill=xf(RED_LT); ws.cell(r,5).font=Font(name='Arial',bold=True,color=RED,size=9)
+            ws.cell(r,6).fill=xf(RED_LT); ws.cell(r,6).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif v['rcs_act']>400:
+            ws.cell(r,5).fill=xf(ORANGE_LT); ws.cell(r,5).font=Font(name='Arial',color=ORANGE,size=9)
+        elif v['rcs_act']>200:
+            ws.cell(r,5).fill=xf(YELLOW)
+        if pct>5: ws.cell(r,8).fill=xf(RED_LT); ws.cell(r,8).font=Font(name='Arial',bold=True,color=RED,size=9)
+        elif pct>2: ws.cell(r,8).fill=xf(ORANGE_LT)
+        ws.row_dimensions[r].height=14
+    ws.freeze_panes='A2'
+
+def generar_mc_del_sheet(wb_out, vacas):
+    NL=chr(10)
+    if 'MC vs DEL' in wb_out.sheetnames: del wb_out['MC vs DEL']
+    ws=wb_out.create_sheet('MC vs DEL')
+
+    rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,999)]
+    rangos_labels = ['0-30','31-60','61-90','91-120','121-150','151-180','181-210','211-240','241-270','>270']
+
+    # Headers
+    ws.merge_cells('A1:A2'); ws['A1']='Rango DEL'; ws['A1'].font=xh(); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc(); ws['A1'].border=xb()
+    ws.column_dimensions['A'].width=12
+
+    col=2
+    tambos_all = sorted(set(v['tambo'] for v in vacas if v['mc_first_del'] is not None and not v['is_seca']))
+    col_map={}
+    for t in tambos_all:
+        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
+        ws.cell(1,col,t).font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
+        ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=10
+        ws.column_dimensions[get_column_letter(col+1)].width=10
+        col_map[t]=(col,col+1); col+=2
+
+    if len(tambos_all)>1:
+        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
+        ws.cell(1,col,'TOTAL').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
+        ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=10
+        ws.column_dimensions[get_column_letter(col+1)].width=10
+        col_map['TOTAL']=(col,col+1)
+        tambos_all.append('TOTAL')
+
+    ws.row_dimensions[1].height=20; ws.row_dimensions[2].height=18
+
+    for ri,((d_ini,d_fin),label) in enumerate(zip(rangos,rangos_labels)):
+        r=ri+3; bg=GREY if r%2==0 else WHITE
+        ws.cell(r,1,label).font=Font(name='Arial',size=9); ws.cell(r,1).alignment=xc(); ws.cell(r,1).border=xb(); ws.cell(r,1).fill=xf(bg)
+        for t in tambos_all:
+            if t=='TOTAL': grupo=[v for v in vacas if not v['is_seca'] and v['mc_first_del'] is not None]
+            else: grupo=[v for v in vacas if v['tambo']==t and not v['is_seca'] and v['mc_first_del'] is not None]
+            n_todas=sum(1 for v in grupo if d_ini<=v['mc_first_del']<=d_fin)
+            n_lact1=sum(1 for v in grupo if v['is_vq'] and d_ini<=v['mc_first_del']<=d_fin)
+            ca,cb=col_map[t]
+            ws.cell(r,ca,n_todas).font=Font(name='Arial',size=9); ws.cell(r,ca).alignment=xc(); ws.cell(r,ca).border=xb(); ws.cell(r,ca).fill=xf(bg)
+            ws.cell(r,cb,n_lact1).font=Font(name='Arial',size=9); ws.cell(r,cb).alignment=xc(); ws.cell(r,cb).border=xb(); ws.cell(r,cb).fill=xf(bg)
+        ws.row_dimensions[r].height=16
+
+    # Totals row
+    r_tot=len(rangos)+3
+    ws.cell(r_tot,1,'TOTAL').font=Font(name='Arial',bold=True,color=WHITE,size=9)
+    ws.cell(r_tot,1).fill=xf(BLUE); ws.cell(r_tot,1).alignment=xc(); ws.cell(r_tot,1).border=xb()
+    for t in tambos_all:
+        if t=='TOTAL': grupo=[v for v in vacas if not v['is_seca'] and v['mc_first_del'] is not None]
+        else: grupo=[v for v in vacas if v['tambo']==t and not v['is_seca'] and v['mc_first_del'] is not None]
+        ca,cb=col_map[t]
+        ws.cell(r_tot,ca,len(grupo)).font=Font(name='Arial',bold=True,color=WHITE,size=9)
+        ws.cell(r_tot,ca).fill=xf(BLUE); ws.cell(r_tot,ca).alignment=xc(); ws.cell(r_tot,ca).border=xb()
+        n_vq=sum(1 for v in grupo if v['is_vq'])
+        ws.cell(r_tot,cb,n_vq).font=Font(name='Arial',bold=True,color=WHITE,size=9)
+        ws.cell(r_tot,cb).fill=xf(BLUE); ws.cell(r_tot,cb).alignment=xc(); ws.cell(r_tot,cb).border=xb()
+    ws.row_dimensions[r_tot].height=18
+
+def generar_secado_sheet(wb_out, vacas, tambos_list):
+    NL=chr(10)
+    if 'Secado' in wb_out.sheetnames: del wb_out['Secado']
+    ws=wb_out.create_sheet('Secado')
+
+    # For secado analysis: vacas secas con datos de RCS
+    # u3c = rcs_ant (ultimo RCS antes del secado = penultimo RCS en base)
+    # 1c  = first_rcs (primer RCS de la lactancia actual)
+    secadas = [v for v in vacas if v['is_seca'] and v['rcs_ant'] is not None and v['first_rcs'] is not None]
+    # For non-seca but with transition data (first_rcs of current lact and previous period)
+    # Actually: compare rcs_ant (penultimo) as u3c and rcs_act (actual) as 1c for secas
+    # Better: use vacas que estan EN ORDENO pero tienen datos del parto reciente
+    # Use all vacas with rcs_ant and first_rcs available
+    con_datos = [v for v in vacas if v['rcs_ant'] is not None and v['first_rcs'] is not None]
+
+    grupos = [(t,[v for v in con_datos if v['tambo']==t]) for t in tambos_list]
+    if len(tambos_list)>1: grupos.append(('TOTAL', con_datos))
+
+    row_labels=['AUTOCURACION (E->S)','CRONICAS (E->E)','SANAS (S->S)','NI (S->E)','TOTAL']
+    ws.cell(1,1,'Categoria').font=xh(); ws.cell(1,1).fill=xf(BLUE); ws.cell(1,1).alignment=xc(); ws.cell(1,1).border=xb()
+    ws.column_dimensions['A'].width=22
+
+    col=2
+    for tambo, grupo in grupos:
+        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
+        ws.cell(1,col,tambo).font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        ws.cell(2,col,'N').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
+        ws.cell(2,col+1,'%').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=8
+        ws.column_dimensions[get_column_letter(col+1)].width=8
+
+        # u3c = rcs_ant, 1c = first_rcs
+        ac=[v for v in grupo if v['rcs_ant']>200 and v['first_rcs']<200]
+        cr=[v for v in grupo if v['rcs_ant']>200 and v['first_rcs']>200]
+        sa=[v for v in grupo if v['rcs_ant']<200 and v['first_rcs']<200]
+        ni=[v for v in grupo if v['rcs_ant']<200 and v['first_rcs']>200]
+        tot=len(grupo)
+        vals=[(len(ac),len(ac)/tot if tot else 0),(len(cr),len(cr)/tot if tot else 0),
+              (len(sa),len(sa)/tot if tot else 0),(len(ni),len(ni)/tot if tot else 0),(tot,1.0)]
+        fills_c=[GREEN_LT,RED_LT,GREEN_LT,ORANGE_LT,BLUE]
+        fonts_c=[GREEN,RED,GREEN,ORANGE,WHITE]
+
+        for ri,(label,(n,pct)) in enumerate(zip(row_labels,vals)):
+            r=ri+3; bg=GREY if r%2==0 else WHITE
+            if col==2:
+                ws.cell(r,1,label).font=Font(name='Arial',size=9); ws.cell(r,1).alignment=xl(); ws.cell(r,1).border=xb(); ws.cell(r,1).fill=xf(bg)
+            ws.cell(r,col,n).font=Font(name='Arial',bold=True,size=9,color=fonts_c[ri])
+            ws.cell(r,col).fill=xf(fills_c[ri]); ws.cell(r,col).alignment=xc(); ws.cell(r,col).border=xb()
+            ws.cell(r,col+1,str(round(pct*100,1))+'%').font=Font(name='Arial',size=9)
+            ws.cell(r,col+1).fill=xf(bg); ws.cell(r,col+1).alignment=xc(); ws.cell(r,col+1).border=xb()
+            ws.row_dimensions[r].height=18
+        col+=2
+
+    ws.row_dimensions[1].height=20; ws.row_dimensions[2].height=18
+
+def generar_analisis(excel_data):
+    vacas, tambos_list = parse_base(excel_data)
+    wb_out = load_workbook(io.BytesIO(bytes(excel_data)))
+
+    generar_resultado_sheet(wb_out, vacas, tambos_list)
+    generar_analisis_rcs_sheet(wb_out, vacas, tambos_list)
+    generar_mc_del_sheet(wb_out, vacas)
+    generar_secado_sheet(wb_out, vacas, tambos_list)
+
+    out=io.BytesIO(); wb_out.save(out); out.seek(0)
+    n_ordeno=sum(1 for v in vacas if not v['is_seca'])
+    n_secas=sum(1 for v in vacas if v['is_seca'])
+    return out.read(), tambos_list, n_ordeno, n_secas
+`;
+
+(async function() {
+  const status = document.getElementById('py-status');
+  try {
+    pyodide = await loadPyodide();
+    status.textContent = 'Instalando openpyxl...';
+    await pyodide.loadPackage('micropip');
+    await pyodide.runPythonAsync('import micropip\nawait micropip.install("openpyxl")');
+    await pyodide.runPythonAsync(PYTHON_CODE);
+    pyReady = true;
+    status.textContent = 'Motor Python listo';
+    status.className = 'py-status ready';
+    checkReady();
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.className = 'py-status error';
+  }
+})();
+
+function readAsArrayBuffer(file) {
+  return new Promise((res,rej) => { const r=new FileReader(); r.onload=e=>res(new Uint8Array(e.target.result)); r.onerror=rej; r.readAsArrayBuffer(file); });
+}
+
+async function handleExcel(input) {
+  const file = input.files[0]; if(!file) return;
+  excelBytes = await readAsArrayBuffer(file);
+  document.getElementById('excel-name').textContent = file.name;
+
+  // Quick tambo detection
+  try {
+    pyodide.globals.set('excel_detect_js', excelBytes);
+    const tambos = await pyodide.runPythonAsync(`
+import json
+from openpyxl import load_workbook
+import io
+wb_d = load_workbook(io.BytesIO(bytes(excel_detect_js)))
+ws_d = wb_d[wb_d.sheetnames[0]]
+hr_d = 5
+for r in range(1,11):
+    if str(ws_d.cell(r,1).value or '').strip() == 'RP': hr_d=r; break
+# Find Tambo col
+tambo_col_d = None
+for c in range(2, ws_d.max_column+1):
+    if str(ws_d.cell(hr_d,c).value or '').strip() == 'Tambo': tambo_col_d=c; break
+tambos_d = set()
+if tambo_col_d:
+    for r in range(hr_d+1, min(hr_d+200, ws_d.max_row+1)):
+        v = ws_d.cell(r,tambo_col_d).value
+        if v: tambos_d.add(str(v).strip())
+json.dumps(list(sorted(tambos_d)))
+`);
+    const tambos_list = JSON.parse(tambos);
+    document.getElementById('excel-tambos').textContent = tambos_list.length > 0 ? tambos_list.join(', ') : 'Sin identificar';
+  } catch(e) {
+    document.getElementById('excel-tambos').textContent = 'No detectado';
+  }
+
+  document.getElementById('info-excel').classList.add('visible');
+  document.getElementById('drop-excel').classList.add('loaded');
+  document.getElementById('label-excel').innerHTML = '<span style="color:var(--accent2)">Cargado: <strong>' + file.name + '</strong></span>';
+  document.getElementById('num1').textContent = 'OK';
+  document.getElementById('card1').classList.add('done');
+  document.getElementById('card2').classList.add('active');
+  checkReady();
+}
+
+function checkReady() {
+  document.getElementById('btn-run').disabled = !(pyReady && excelBytes);
+}
+
+async function runAnalisis() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('btn-text').innerHTML = '<div style="width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div> Calculando...';
+  document.getElementById('error-box').classList.remove('visible');
+  document.getElementById('result-box').classList.remove('visible');
+
+  try {
+    pyodide.globals.set('excel_data_js', excelBytes);
+    const resultJson = await pyodide.runPythonAsync(`
+import json
+rb, tambos, n_ord, n_sec = generar_analisis(excel_data_js)
+result_bytes_py = rb
+json.dumps({'tambos': tambos, 'n_ord': n_ord, 'n_sec': n_sec})
+`);
+    const info = JSON.parse(resultJson);
+    const rb = pyodide.globals.get('result_bytes_py');
+    resultBytes = new Uint8Array(rb.toJs ? rb.toJs() : rb);
+
+    document.getElementById('result-summary').innerHTML =
+      'Tambos: ' + info.tambos.join(', ') + '\n' +
+      'Vacas en ordeno: ' + info.n_ord + '\n' +
+      'Vacas secas: ' + info.n_sec + '\n' +
+      'Hojas generadas: Resultado | Analisis RCS | MC vs DEL | Secado';
+
+    document.getElementById('result-box').classList.add('visible');
+    document.getElementById('num2').textContent = 'OK';
+    document.getElementById('card2').classList.add('done');
+    document.getElementById('btn-text').textContent = 'Analisis generado';
+  } catch(e) {
+    document.getElementById('error-box').textContent = 'Error: ' + e.message;
+    document.getElementById('error-box').classList.add('visible');
+    document.getElementById('btn-text').textContent = 'Generar Analisis';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function downloadResult() {
+  if(!resultBytes) return;
+  const blob = new Blob([resultBytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='analisis_mensual.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('drop-excel').addEventListener('dragover', e=>{e.preventDefault();document.getElementById('drop-excel').classList.add('dragover');});
+document.getElementById('drop-excel').addEventListener('dragleave', ()=>document.getElementById('drop-excel').classList.remove('dragover'));
+document.getElementById('drop-excel').addEventListener('drop', e=>{
+  e.preventDefault(); document.getElementById('drop-excel').classList.remove('dragover');
+  const file=e.dataTransfer.files[0]; if(!file) return;
+  const inp=document.getElementById('file-excel');
+  const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files; handleExcel(inp);
+});
+
+const CREDS = {user: 'fgpuricelli', pass: '2922'};
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value.trim();
+  if(u === CREDS.user && p === CREDS.pass) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'block';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
