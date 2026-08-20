@@ -226,7 +226,26 @@ def parse_base(excel_data):
         rcs_ant = ws.cell(r, col_ant).value if col_ant else None
         if rcs_act is None: rcs_act = re
 
-        # MC first event DEL in current lactation
+        # u3c = ultimo RCS de la lactancia ANTERIOR (antes de ini_lact)
+        # 1c  = primer RCS de la lactancia ACTUAL (despues de ini_lact)
+        u3c = None
+        first_rcs = None
+        if ini_lact:
+            ini_date_s = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
+            # Last RCS before ini_lact = u3c
+            for c in reversed(rcs_sorted):
+                if rcs_col_dates[c] < ini_date_s:
+                    v2 = ws.cell(r, c).value
+                    if v2 is not None:
+                        try: u3c = float(v2); break
+                        except: pass
+            # First RCS after ini_lact = 1c
+            for c in rcs_sorted:
+                if rcs_col_dates[c] >= ini_date_s:
+                    v2 = ws.cell(r, c).value
+                    if v2 is not None:
+                        try: first_rcs = float(v2); break
+                        except: pass
         mc_first_del = None
         mc_first_date = None
         if ini_lact:
@@ -273,7 +292,8 @@ def parse_base(excel_data):
         vacas.append({'rp':rp,'tambo':tambo,'nl':nl_i,'dias':dias_f,'le':le_f,'re':re_f,
                       'rcs_act':rcs_act_f,'rcs_ant':rcs_ant_f,'ni':ni,
                       'is_seca':is_seca,'is_vq':nl_i==1,
-                      'mc_first_del':mc_first_del,'mc_first_date':mc_first_date,'first_rcs':first_rcs})
+                      'mc_first_del':mc_first_del,'mc_first_date':mc_first_date,
+                      'u3c':u3c,'first_rcs':first_rcs})
 
     tambos_list = sorted(set(v['tambo'] for v in vacas))
     return vacas, tambos_list
@@ -308,7 +328,7 @@ def calc_resultado(vacas_grupo):
             'tni':round(tni*100,1),'pni':round(pni*100,1),
             'nvq':nvq,'pct_vq':round(pct_vq*100,1),'le_vq':round(le_vq,1),'del_vq':round(del_vq,0),
             'rcs_vq':round(rcs_vq,0),'n_vqs200':n_vqs200,'prev_vq':round(prev_vq*100,1),
-            'n_vqni':n_vqni,'tni_vq':round(tni_vq*100,1)}
+            'n_vqexp':n_vqexp,'n_vqni':n_vqni,'tni_vq':round(tni_vq*100,1)}
 
 def generar_resultado_sheet(wb_out, vacas, tambos_list):
     NL=chr(10)
@@ -351,8 +371,9 @@ def generar_resultado_sheet(wb_out, vacas, tambos_list):
             (18,'DEL prom. Vaquillonas (dias)',r_dat['del_vq']),
             (19,'RCS prom. Vaquillonas (x1000 cel)',r_dat['rcs_vq']),
             (20,'% vaquillonas >200 CS',str(r_dat['prev_vq'])+'%'),
-            (21,'N NI vaquillonas',r_dat['n_vqni']),
-            (22,'Tasa NI vaquillonas (%)',str(r_dat['tni_vq'])+'%'),
+            (21,'Vaq. expuestas mes ant (<200 CS)',r_dat['n_vqexp']),
+            (22,'N NI vaquillonas',r_dat['n_vqni']),
+            (23,'Tasa NI vaquillonas (%)',str(r_dat['tni_vq'])+'%'),
         ]
         for row_n, label, val in filas:
             if label=='header':
@@ -435,8 +456,8 @@ def generar_mc_del_sheet(wb_out, vacas):
         if v['mc_first_del'] is None or v['is_seca'] or v['mc_first_date'] is None: return False
         return v['mc_first_date'].month == mes_m and v['mc_first_date'].year == mes_y
 
-    rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,9999)]
-    rangos_labels = ['0-30','31-60','61-90','91-120','121-150','151-180','181-210','211-240','241-270','>270']
+    rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,300),(301,9999)]
+    rangos_labels = ['0-30','31-60','61-90','91-120','121-150','151-180','181-210','211-240','241-270','271-300','>300']
 
     ws.merge_cells('A1:A2'); ws['A1']='Rango DEL'
     ws['A1'].font=xh(); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc(); ws['A1'].border=xb()
@@ -492,59 +513,176 @@ def generar_mc_del_sheet(wb_out, vacas):
     ws.row_dimensions[r_tot].height=18
 
 def generar_secado_sheet(wb_out, vacas, tambos_list):
-    NL=chr(10)
     if 'Secado' in wb_out.sheetnames: del wb_out['Secado']
     ws=wb_out.create_sheet('Secado')
 
-    # For secado analysis: vacas secas con datos de RCS
-    # u3c = rcs_ant (ultimo RCS antes del secado = penultimo RCS en base)
-    # 1c  = first_rcs (primer RCS de la lactancia actual)
-    secadas = [v for v in vacas if v['is_seca'] and v['rcs_ant'] is not None and v['first_rcs'] is not None]
-    # For non-seca but with transition data (first_rcs of current lact and previous period)
-    # Actually: compare rcs_ant (penultimo) as u3c and rcs_act (actual) as 1c for secas
-    # Better: use vacas que estan EN ORDENO pero tienen datos del parto reciente
-    # Use all vacas with rcs_ant and first_rcs available
-    con_datos = [v for v in vacas if v['rcs_ant'] is not None and v['first_rcs'] is not None]
+    # Mes cerrado
+    today = datetime.date.today()
+    if today.month == 1: mes_m, mes_y = 12, today.year-1
+    else: mes_m, mes_y = today.month-1, today.year
 
-    grupos = [(t,[v for v in con_datos if v['tambo']==t]) for t in tambos_list]
-    if len(tambos_list)>1: grupos.append(('TOTAL', con_datos))
+    # Vacas paridas en el mes analizado con DEL 0-35
+    def parida_en_mes(v):
+        if v['dias'] is None or v['dias'] <= 0 or v['dias'] > 35: return False
+        return True
 
-    row_labels=['AUTOCURACION (E->S)','CRONICAS (E->E)','SANAS (S->S)','NI (S->E)','TOTAL']
-    ws.cell(1,1,'Categoria').font=xh(); ws.cell(1,1).fill=xf(BLUE); ws.cell(1,1).alignment=xc(); ws.cell(1,1).border=xb()
-    ws.column_dimensions['A'].width=22
+    rangos_rcs = [(0,200),(201,300),(301,500),(501,99999)]
+    rangos_labels = ['0-200','201-300','301-500','>500']
 
+    def rango_idx(rcs):
+        for i,(lo,hi) in enumerate(rangos_rcs):
+            if lo <= rcs <= hi: return i
+        return len(rangos_rcs)-1
+
+    def clasif(u, p):
+        if u is None or p is None: return None
+        if u > 200 and p < 200: return 'AC'
+        if u > 200 and p > 200: return 'CR'
+        if u < 200 and p < 200: return 'SA'
+        if u < 200 and p > 200: return 'NI'
+        return None
+
+    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs
+    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq']
+                 and v['u3c'] is not None and v['u3c'] > 0
+                 and v['first_rcs'] is not None and v['first_rcs'] > 0]
+
+    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs
+    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq']
+               and v['first_rcs'] is not None and v['first_rcs'] > 0]
+
+    grupos = [(t,[v for v in vacas_sec if v['tambo']==t]) for t in tambos_list]
+    if len(tambos_list)>1: grupos.append(('TOTAL', vacas_sec))
+    grupos_vq = [(t,[v for v in vqs_sec if v['tambo']==t]) for t in tambos_list]
+    if len(tambos_list)>1: grupos_vq.append(('TOTAL', vqs_sec))
+
+    row = 1
+    # === VACAS SECTION ===
+    ws.merge_cells(f'A{row}:B{row}')
+    ws.cell(row,1,'SECADO - VACAS (Lact > 1, DEL 0-35)').font=xh(size=11)
+    ws.cell(row,1).fill=xf(BLUE); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    ws.column_dimensions['A'].width=18; ws.column_dimensions['B'].width=12
+    ws.row_dimensions[row].height=22; row+=1
+
+    # Sub-headers
+    ws.cell(row,1,'Clasificacion').font=xh(); ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
     col=2
-    for tambo, grupo in grupos:
-        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
-        ws.cell(1,col,tambo).font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
-        ws.cell(2,col,'N').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
-        ws.cell(2,col+1,'%').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
-        ws.column_dimensions[get_column_letter(col)].width=8
-        ws.column_dimensions[get_column_letter(col+1)].width=8
+    col_map_s={}
+    for tambo,grupo in grupos:
+        ws.merge_cells(start_row=row,start_column=col,end_row=row,end_column=col+1)
+        ws.cell(row,col,tambo).font=xh(); ws.cell(row,col).fill=xf(BLUE); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb()
+        ws.cell(row+1,col,'N').font=xh(size=8); ws.cell(row+1,col).fill=xf('2C3E50'); ws.cell(row+1,col).alignment=xc(); ws.cell(row+1,col).border=xb()
+        ws.cell(row+1,col+1,'%').font=xh(size=8); ws.cell(row+1,col+1).fill=xf('2C3E50'); ws.cell(row+1,col+1).alignment=xc(); ws.cell(row+1,col+1).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=8; ws.column_dimensions[get_column_letter(col+1)].width=8
+        col_map_s[tambo]=(col,col+1); col+=2
+    ws.row_dimensions[row].height=20; row+=1; ws.row_dimensions[row].height=18; row+=1
 
-        # u3c = rcs_ant, 1c = first_rcs
-        ac=[v for v in grupo if v['rcs_ant']>200 and v['first_rcs']<200]
-        cr=[v for v in grupo if v['rcs_ant']>200 and v['first_rcs']>200]
-        sa=[v for v in grupo if v['rcs_ant']<200 and v['first_rcs']<200]
-        ni=[v for v in grupo if v['rcs_ant']<200 and v['first_rcs']>200]
-        tot=len(grupo)
-        vals=[(len(ac),len(ac)/tot if tot else 0),(len(cr),len(cr)/tot if tot else 0),
-              (len(sa),len(sa)/tot if tot else 0),(len(ni),len(ni)/tot if tot else 0),(tot,1.0)]
-        fills_c=[GREEN_LT,RED_LT,GREEN_LT,ORANGE_LT,BLUE]
-        fonts_c=[GREEN,RED,GREEN,ORANGE,WHITE]
+    clasif_rows=[('AC','AUTOCURACION (u3c>200, 1c<200)',GREEN_LT,GREEN),
+                 ('CR','CRONICA (u3c>200, 1c>200)',RED_LT,RED),
+                 ('SA','SANA (u3c<200, 1c<200)',GREEN_LT,GREEN),
+                 ('NI','NI (u3c<200, 1c>200)',ORANGE_LT,ORANGE)]
+    for cl,label,fill_c,font_c in clasif_rows:
+        bg=GREY if row%2==0 else WHITE
+        ws.cell(row,1,label).font=Font(name='Arial',size=9); ws.cell(row,1).alignment=xl(); ws.cell(row,1).border=xb(); ws.cell(row,1).fill=xf(bg)
+        for tambo,grupo in grupos:
+            ca,cb=col_map_s[tambo]; tot=len(grupo)
+            n=sum(1 for v in grupo if clasif(v['u3c'],v['first_rcs'])==cl)
+            pct=n/tot if tot>0 else 0
+            ws.cell(row,ca,n).font=Font(name='Arial',bold=True,size=9,color=font_c); ws.cell(row,ca).fill=xf(fill_c); ws.cell(row,ca).alignment=xc(); ws.cell(row,ca).border=xb()
+            ws.cell(row,cb,str(round(pct*100,1))+'%').font=Font(name='Arial',size=9); ws.cell(row,cb).fill=xf(bg); ws.cell(row,cb).alignment=xc(); ws.cell(row,cb).border=xb()
+        ws.row_dimensions[row].height=18; row+=1
 
-        for ri,(label,(n,pct)) in enumerate(zip(row_labels,vals)):
-            r=ri+3; bg=GREY if r%2==0 else WHITE
-            if col==2:
-                ws.cell(r,1,label).font=Font(name='Arial',size=9); ws.cell(r,1).alignment=xl(); ws.cell(r,1).border=xb(); ws.cell(r,1).fill=xf(bg)
-            ws.cell(r,col,n).font=Font(name='Arial',bold=True,size=9,color=fonts_c[ri])
-            ws.cell(r,col).fill=xf(fills_c[ri]); ws.cell(r,col).alignment=xc(); ws.cell(r,col).border=xb()
-            ws.cell(r,col+1,str(round(pct*100,1))+'%').font=Font(name='Arial',size=9)
-            ws.cell(r,col+1).fill=xf(bg); ws.cell(r,col+1).alignment=xc(); ws.cell(r,col+1).border=xb()
-            ws.row_dimensions[r].height=18
-        col+=2
+    # Total row
+    ws.cell(row,1,'TOTAL').font=xh(); ws.cell(row,1).fill=xf(BLUE); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    for tambo,grupo in grupos:
+        ca,cb=col_map_s[tambo]
+        ws.cell(row,ca,len(grupo)).font=xh(); ws.cell(row,ca).fill=xf(BLUE); ws.cell(row,ca).alignment=xc(); ws.cell(row,ca).border=xb()
+        ws.cell(row,cb,'100%').font=xh(); ws.cell(row,cb).fill=xf(BLUE); ws.cell(row,cb).alignment=xc(); ws.cell(row,cb).border=xb()
+    ws.row_dimensions[row].height=18; row+=2
 
-    ws.row_dimensions[1].height=20; ws.row_dimensions[2].height=18
+    # === DISTRIBUCION RCS ===
+    ws.merge_cells(f'A{row}:B{row}')
+    ws.cell(row,1,'DISTRIBUCION RCS - u3c (ultimo ctrl lact. anterior)').font=xh(size=10)
+    ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    ws.row_dimensions[row].height=20; row+=1
+
+    ws.cell(row,1,'Rango (x1000)').font=xh(); ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    col=2
+    for tambo,grupo in grupos:
+        ws.cell(row,col,tambo).font=xh(); ws.cell(row,col).fill=xf(BLUE); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=10; col+=1
+    ws.row_dimensions[row].height=18; row+=1
+
+    for rl,((lo,hi),label) in enumerate(zip(rangos_rcs,rangos_labels)):
+        bg=GREY if row%2==0 else WHITE
+        ws.cell(row,1,label).font=Font(name='Arial',size=9); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb(); ws.cell(row,1).fill=xf(bg)
+        col=2
+        for tambo,grupo in grupos:
+            n=sum(1 for v in grupo if v['u3c'] is not None and lo<=v['u3c']<=hi)
+            ws.cell(row,col,n if n>0 else '').font=Font(name='Arial',size=9); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb(); ws.cell(row,col).fill=xf(bg)
+            col+=1
+        ws.row_dimensions[row].height=16; row+=1
+    row+=1
+
+    # Distribucion 1c
+    ws.merge_cells(f'A{row}:B{row}')
+    ws.cell(row,1,'DISTRIBUCION RCS - 1c (primer ctrl lact. actual)').font=xh(size=10)
+    ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    ws.row_dimensions[row].height=20; row+=1
+
+    ws.cell(row,1,'Rango (x1000)').font=xh(); ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    col=2
+    for tambo,grupo in grupos:
+        ws.cell(row,col,tambo).font=xh(); ws.cell(row,col).fill=xf(BLUE); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb()
+        col+=1
+    ws.row_dimensions[row].height=18; row+=1
+
+    for rl,((lo,hi),label) in enumerate(zip(rangos_rcs,rangos_labels)):
+        bg=GREY if row%2==0 else WHITE
+        ws.cell(row,1,label).font=Font(name='Arial',size=9); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb(); ws.cell(row,1).fill=xf(bg)
+        col=2
+        for tambo,grupo in grupos:
+            n=sum(1 for v in grupo if v['first_rcs'] is not None and lo<=v['first_rcs']<=hi)
+            ws.cell(row,col,n if n>0 else '').font=Font(name='Arial',size=9); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb(); ws.cell(row,col).fill=xf(bg)
+            col+=1
+        ws.row_dimensions[row].height=16; row+=1
+    row+=2
+
+    # === VAQUILLONAS SECTION ===
+    ws.merge_cells(f'A{row}:B{row}')
+    ws.cell(row,1,'VAQUILLONAS (Lact. 1, DEL 0-35) - Primer control lechero').font=xh(size=11)
+    ws.cell(row,1).fill=xf('1A6E3A'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    ws.row_dimensions[row].height=22; row+=1
+
+    ws.cell(row,1,'Rango 1c (x1000)').font=xh(); ws.cell(row,1).fill=xf('2C3E50'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    col=2
+    col_map_vq={}
+    for tambo,grupo in grupos_vq:
+        ws.merge_cells(start_row=row,start_column=col,end_row=row,end_column=col+1)
+        ws.cell(row,col,tambo).font=xh(); ws.cell(row,col).fill=xf('1A6E3A'); ws.cell(row,col).alignment=xc(); ws.cell(row,col).border=xb()
+        ws.cell(row+1,col,'N').font=xh(size=8); ws.cell(row+1,col).fill=xf('2C3E50'); ws.cell(row+1,col).alignment=xc(); ws.cell(row+1,col).border=xb()
+        ws.cell(row+1,col+1,'%').font=xh(size=8); ws.cell(row+1,col+1).fill=xf('2C3E50'); ws.cell(row+1,col+1).alignment=xc(); ws.cell(row+1,col+1).border=xb()
+        ws.column_dimensions[get_column_letter(col)].width=8; ws.column_dimensions[get_column_letter(col+1)].width=8
+        col_map_vq[tambo]=(col,col+1); col+=2
+    ws.row_dimensions[row].height=20; row+=1; ws.row_dimensions[row].height=18; row+=1
+
+    for rl,((lo,hi),label) in enumerate(zip(rangos_rcs,rangos_labels)):
+        bg=GREY if row%2==0 else WHITE
+        ws.cell(row,1,label).font=Font(name='Arial',size=9); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb(); ws.cell(row,1).fill=xf(bg)
+        for tambo,grupo in grupos_vq:
+            ca,cb=col_map_vq[tambo]; tot=len(grupo)
+            n=sum(1 for v in grupo if lo<=v['first_rcs']<=hi)
+            pct=n/tot if tot>0 else 0
+            ws.cell(row,ca,n if n>0 else '').font=Font(name='Arial',size=9); ws.cell(row,ca).alignment=xc(); ws.cell(row,ca).border=xb(); ws.cell(row,ca).fill=xf(bg)
+            ws.cell(row,cb,str(round(pct*100,1))+'%' if n>0 else '').font=Font(name='Arial',size=9); ws.cell(row,cb).alignment=xc(); ws.cell(row,cb).border=xb(); ws.cell(row,cb).fill=xf(bg)
+        ws.row_dimensions[row].height=16; row+=1
+
+    ws.cell(row,1,'TOTAL').font=xh(); ws.cell(row,1).fill=xf('1A6E3A'); ws.cell(row,1).alignment=xc(); ws.cell(row,1).border=xb()
+    for tambo,grupo in grupos_vq:
+        ca,cb=col_map_vq[tambo]
+        ws.cell(row,ca,len(grupo)).font=xh(); ws.cell(row,ca).fill=xf('1A6E3A'); ws.cell(row,ca).alignment=xc(); ws.cell(row,ca).border=xb()
+        ws.cell(row,cb,'100%').font=xh(); ws.cell(row,cb).fill=xf('1A6E3A'); ws.cell(row,cb).alignment=xc(); ws.cell(row,cb).border=xb()
+    ws.row_dimensions[row].height=18
 
 def generar_analisis(excel_data):
     vacas, tambos_list = parse_base(excel_data)
