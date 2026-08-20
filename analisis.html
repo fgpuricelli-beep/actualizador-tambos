@@ -226,22 +226,29 @@ def parse_base(excel_data):
         rcs_ant = ws.cell(r, col_ant).value if col_ant else None
         if rcs_act is None: rcs_act = re
 
-        # u3c = ultimo RCS de la lactancia ANTERIOR (antes de ini_lact)
-        # 1c  = primer RCS de la lactancia ACTUAL (despues de ini_lact)
+        # u3c = ultimo RCS de la lactancia ANTERIOR (antes del mes de ini_lact)
+        # 1c  = primer RCS de la lactancia ACTUAL (desde el mes de ini_lact en adelante)
+        # Comparacion por MES (no por fecha exacta): las columnas de RCS solo tienen
+        # granularidad mensual (dia 1 fijo), asi que comparar por dia exacto contra
+        # ini_lact descartaba mal el propio control del mes de parto (ej. parto el 4/08
+        # con control cargado en la columna 2026-08-01 quedaba "antes" del parto por error).
         u3c = None
         first_rcs = None
         if ini_lact:
             ini_date_s = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
-            # Last RCS before ini_lact = u3c
+            ini_ym = (ini_date_s.year, ini_date_s.month)
+            # Ultimo RCS de un mes ANTERIOR al mes de parto = u3c
             for c in reversed(rcs_sorted):
-                if rcs_col_dates[c] < ini_date_s:
+                d = rcs_col_dates[c]
+                if (d.year, d.month) < ini_ym:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
                         try: u3c = float(v2); break
                         except: pass
-            # First RCS after ini_lact = 1c
+            # Primer RCS desde el mes de parto en adelante = 1c
             for c in rcs_sorted:
-                if rcs_col_dates[c] >= ini_date_s:
+                d = rcs_col_dates[c]
+                if (d.year, d.month) >= ini_ym:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
                         try: first_rcs = float(v2); break
@@ -258,17 +265,6 @@ def parse_base(excel_data):
                         mc_first_del = (ev_date - ini_date).days
                         mc_first_date = ev_date
                         break
-
-        # First RCS of current lactation (for vaquillonas analysis)
-        first_rcs = None
-        if ini_lact:
-            ini_date2 = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
-            for c in rcs_sorted:
-                if rcs_col_dates[c] >= ini_date2:
-                    v2 = ws.cell(r, c).value
-                    if v2 is not None:
-                        try: first_rcs = float(v2); break
-                        except: pass
 
         try:
             le_f=float(le) if le else 0
