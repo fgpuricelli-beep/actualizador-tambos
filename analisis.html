@@ -228,6 +228,7 @@ def parse_base(excel_data):
 
         # MC first event DEL in current lactation
         mc_first_del = None
+        mc_first_date = None
         if ini_lact:
             ini_date = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
             for col in sorted(mc_col_dates.keys()):
@@ -236,6 +237,7 @@ def parse_base(excel_data):
                     ev_date = cell.value.date() if isinstance(cell.value, datetime.datetime) else mc_col_dates[col]
                     if ev_date >= ini_date:
                         mc_first_del = (ev_date - ini_date).days
+                        mc_first_date = ev_date
                         break
 
         # First RCS of current lactation (for vaquillonas analysis)
@@ -271,21 +273,20 @@ def parse_base(excel_data):
         vacas.append({'rp':rp,'tambo':tambo,'nl':nl_i,'dias':dias_f,'le':le_f,'re':re_f,
                       'rcs_act':rcs_act_f,'rcs_ant':rcs_ant_f,'ni':ni,
                       'is_seca':is_seca,'is_vq':nl_i==1,
-                      'mc_first_del':mc_first_del,'first_rcs':first_rcs})
+                      'mc_first_del':mc_first_del,'mc_first_date':mc_first_date,'first_rcs':first_rcs})
 
     tambos_list = sorted(set(v['tambo'] for v in vacas))
     return vacas, tambos_list
 
 def calc_resultado(vacas_grupo):
-    en_ordeno = [v for v in vacas_grupo if not v['is_seca']]
+    en_ordeno = [v for v in vacas_grupo if not v['is_seca'] and v['le']>0 and v['rcs_act']>0]
     if not en_ordeno: return {}
     n=len(en_ordeno); lt=sum(v['le'] for v in en_ordeno)
     le_pr=lt/n if n>0 else 0
     del_pr=sum(v['dias'] for v in en_ordeno)/n if n>0 else 0
     rcs_pr=sum(v['re']*v['le'] for v in en_ordeno)/lt if lt>0 else 0
-    n_rcs=sum(1 for v in en_ordeno if v['rcs_act']>0)
     n_s200=sum(1 for v in en_ordeno if v['rcs_act']>200)
-    prev=n_s200/n_rcs if n_rcs>0 else 0
+    prev=n_s200/n if n>0 else 0
     n_exp=sum(1 for v in en_ordeno if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
     n_ni=sum(1 for v in en_ordeno if v['ni']=='NI')
     tni=n_ni/n_exp if n_exp>0 else 0
@@ -301,17 +302,13 @@ def calc_resultado(vacas_grupo):
     n_vqexp=sum(1 for v in vqs if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
     n_vqni=sum(1 for v in vqs if v['ni']=='NI')
     tni_vq=n_vqni/n_vqexp if n_vqexp>0 else 0
-    # First RCS vaquillonas
-    vq_first=[v['first_rcs'] for v in vqs if v['first_rcs'] is not None]
-    n_vq_fr=len(vq_first)
-    n_vq_fr200=sum(1 for x in vq_first if x>200)
-    prev_vq_fr=n_vq_fr200/n_vq_fr if n_vq_fr>0 else 0
+    pct_vq=nvq/n if n>0 else 0
     return {'n':n,'le_pr':round(le_pr,1),'del_pr':round(del_pr,0),'rcs_pr':round(rcs_pr,0),
             'n_s200':n_s200,'prev':round(prev*100,1),'n_exp':n_exp,'n_ni':n_ni,
             'tni':round(tni*100,1),'pni':round(pni*100,1),
-            'nvq':nvq,'le_vq':round(le_vq,1),'del_vq':round(del_vq,0),'rcs_vq':round(rcs_vq,0),
-            'n_vqs200':n_vqs200,'prev_vq':round(prev_vq*100,1),'n_vqni':n_vqni,'tni_vq':round(tni_vq*100,1),
-            'n_vq_fr':n_vq_fr,'n_vq_fr200':n_vq_fr200,'prev_vq_fr':round(prev_vq_fr*100,1)}
+            'nvq':nvq,'pct_vq':round(pct_vq*100,1),'le_vq':round(le_vq,1),'del_vq':round(del_vq,0),
+            'rcs_vq':round(rcs_vq,0),'n_vqs200':n_vqs200,'prev_vq':round(prev_vq*100,1),
+            'n_vqni':n_vqni,'tni_vq':round(tni_vq*100,1)}
 
 def generar_resultado_sheet(wb_out, vacas, tambos_list):
     NL=chr(10)
@@ -322,7 +319,9 @@ def generar_resultado_sheet(wb_out, vacas, tambos_list):
     grupos = [(t, [v for v in vacas if v['tambo']==t]) for t in tambos_list]
     if len(tambos_list) > 1: grupos.append(('TOTAL', vacas))
 
-    col_start = 2
+    col_start = 3
+    ws.column_dimensions['A'].width=3
+    ws.column_dimensions['B'].width=35
     for tambo, grupo in grupos:
         r_dat = calc_resultado(grupo)
         if not r_dat: continue
@@ -334,30 +333,26 @@ def generar_resultado_sheet(wb_out, vacas, tambos_list):
 
         filas = [
             (2,'GENERAL','header'),
-            (3,'Vc en ordeno',r_dat['n']),
-            (4,'Litros/vaca',r_dat['le_pr']),
-            (5,'DEL promedio',r_dat['del_pr']),
-            (6,'RCS ponderado',r_dat['rcs_pr']),
+            (3,'Vacas en ordeno (Le>0 y RCS>0)',r_dat['n']),
+            (4,'Litros/vaca (L/dia)',r_dat['le_pr']),
+            (5,'DEL promedio (dias)',r_dat['del_pr']),
+            (6,'RCS ponderado (x1000 cel)',r_dat['rcs_pr']),
             (7,'Nro Vc >200 CS',r_dat['n_s200']),
-            (8,'Prevalencia >200 CS',str(r_dat['prev'])+'%'),
-            (9,'Vacas expuestas (ant <200)',r_dat['n_exp']),
-            (10,'Nro Vc con NI',r_dat['n_ni']),
-            (11,'Tasa NI probables',str(r_dat['tni'])+'%'),
-            (12,'%NI / >200 CS',str(r_dat['pni'])+'%'),
+            (8,'Prevalencia >200 CS (%)',str(r_dat['prev'])+'%'),
+            (9,'Vacas expuestas mes ant (<200 CS)',r_dat['n_exp']),
+            (10,'Nro NI probables',r_dat['n_ni']),
+            (11,'Tasa NI probables (%)',str(r_dat['tni'])+'%'),
+            (12,'% NI / >200 CS',str(r_dat['pni'])+'%'),
             (13,'',''),
-            (14,'VAQUILLONAS','header'),
+            (14,'VAQUILLONAS (Lact. 1)','header'),
             (15,'N vaquillonas',r_dat['nvq']),
-            (16,'Litros prom. Vaq',r_dat['le_vq']),
-            (17,'DEL prom. Vaq',r_dat['del_vq']),
-            (18,'RCS prom. Vaq',r_dat['rcs_vq']),
-            (19,'% vaq >200 CS',str(r_dat['prev_vq'])+'%'),
-            (20,'N NI vaquillonas',r_dat['n_vqni']),
-            (21,'Tasa NI vaquillonas',str(r_dat['tni_vq'])+'%'),
-            (22,'',''),
-            (23,'PRIMER CONTROL VAQUILLONAS','header'),
-            (24,'N vaq con 1er control',r_dat['n_vq_fr']),
-            (25,'N vaq >200 en 1er ctrl',r_dat['n_vq_fr200']),
-            (26,'% vaq >200 en 1er ctrl',str(r_dat['prev_vq_fr'])+'%'),
+            (16,'% vaquillonas del rodeo',str(r_dat['pct_vq'])+'%'),
+            (17,'Litros prom. Vaquillonas (L/dia)',r_dat['le_vq']),
+            (18,'DEL prom. Vaquillonas (dias)',r_dat['del_vq']),
+            (19,'RCS prom. Vaquillonas (x1000 cel)',r_dat['rcs_vq']),
+            (20,'% vaquillonas >200 CS',str(r_dat['prev_vq'])+'%'),
+            (21,'N NI vaquillonas',r_dat['n_vqni']),
+            (22,'Tasa NI vaquillonas (%)',str(r_dat['tni_vq'])+'%'),
         ]
         for row_n, label, val in filas:
             if label=='header':
@@ -427,23 +422,32 @@ def generar_analisis_rcs_sheet(wb_out, vacas, tambos_list):
     ws.freeze_panes='A2'
 
 def generar_mc_del_sheet(wb_out, vacas):
-    NL=chr(10)
     if 'MC vs DEL' in wb_out.sheetnames: del wb_out['MC vs DEL']
     ws=wb_out.create_sheet('MC vs DEL')
 
-    rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,999)]
+    # Mes cerrado = mes anterior al actual
+    today = datetime.date.today()
+    if today.month == 1: mes_m, mes_y = 12, today.year-1
+    else: mes_m, mes_y = today.month-1, today.year
+    mes_label = datetime.date(mes_y, mes_m, 1).strftime('%b %Y').upper()
+
+    def mc_en_mes(v):
+        if v['mc_first_del'] is None or v['is_seca'] or v['mc_first_date'] is None: return False
+        return v['mc_first_date'].month == mes_m and v['mc_first_date'].year == mes_y
+
+    rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,9999)]
     rangos_labels = ['0-30','31-60','61-90','91-120','121-150','151-180','181-210','211-240','241-270','>270']
 
-    # Headers
-    ws.merge_cells('A1:A2'); ws['A1']='Rango DEL'; ws['A1'].font=xh(); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc(); ws['A1'].border=xb()
+    ws.merge_cells('A1:A2'); ws['A1']='Rango DEL'
+    ws['A1'].font=xh(); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc(); ws['A1'].border=xb()
     ws.column_dimensions['A'].width=12
 
     col=2
-    tambos_all = sorted(set(v['tambo'] for v in vacas if v['mc_first_del'] is not None and not v['is_seca']))
+    tambos_all = sorted(set(v['tambo'] for v in vacas if not v['is_seca']))
     col_map={}
     for t in tambos_all:
         ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
-        ws.cell(1,col,t).font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        ws.cell(1,col,f'{t} - {mes_label}').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
         ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
         ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
         ws.column_dimensions[get_column_letter(col)].width=10
@@ -452,7 +456,7 @@ def generar_mc_del_sheet(wb_out, vacas):
 
     if len(tambos_all)>1:
         ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
-        ws.cell(1,col,'TOTAL').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        ws.cell(1,col,f'TOTAL - {mes_label}').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
         ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
         ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
         ws.column_dimensions[get_column_letter(col)].width=10
@@ -466,26 +470,23 @@ def generar_mc_del_sheet(wb_out, vacas):
         r=ri+3; bg=GREY if r%2==0 else WHITE
         ws.cell(r,1,label).font=Font(name='Arial',size=9); ws.cell(r,1).alignment=xc(); ws.cell(r,1).border=xb(); ws.cell(r,1).fill=xf(bg)
         for t in tambos_all:
-            if t=='TOTAL': grupo=[v for v in vacas if not v['is_seca'] and v['mc_first_del'] is not None]
-            else: grupo=[v for v in vacas if v['tambo']==t and not v['is_seca'] and v['mc_first_del'] is not None]
+            grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v)]
             n_todas=sum(1 for v in grupo if d_ini<=v['mc_first_del']<=d_fin)
             n_lact1=sum(1 for v in grupo if v['is_vq'] and d_ini<=v['mc_first_del']<=d_fin)
             ca,cb=col_map[t]
-            ws.cell(r,ca,n_todas).font=Font(name='Arial',size=9); ws.cell(r,ca).alignment=xc(); ws.cell(r,ca).border=xb(); ws.cell(r,ca).fill=xf(bg)
-            ws.cell(r,cb,n_lact1).font=Font(name='Arial',size=9); ws.cell(r,cb).alignment=xc(); ws.cell(r,cb).border=xb(); ws.cell(r,cb).fill=xf(bg)
+            ws.cell(r,ca,n_todas if n_todas>0 else '').font=Font(name='Arial',size=9); ws.cell(r,ca).alignment=xc(); ws.cell(r,ca).border=xb(); ws.cell(r,ca).fill=xf(bg)
+            ws.cell(r,cb,n_lact1 if n_lact1>0 else '').font=Font(name='Arial',size=9); ws.cell(r,cb).alignment=xc(); ws.cell(r,cb).border=xb(); ws.cell(r,cb).fill=xf(bg)
         ws.row_dimensions[r].height=16
 
-    # Totals row
     r_tot=len(rangos)+3
     ws.cell(r_tot,1,'TOTAL').font=Font(name='Arial',bold=True,color=WHITE,size=9)
     ws.cell(r_tot,1).fill=xf(BLUE); ws.cell(r_tot,1).alignment=xc(); ws.cell(r_tot,1).border=xb()
     for t in tambos_all:
-        if t=='TOTAL': grupo=[v for v in vacas if not v['is_seca'] and v['mc_first_del'] is not None]
-        else: grupo=[v for v in vacas if v['tambo']==t and not v['is_seca'] and v['mc_first_del'] is not None]
+        grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v)]
         ca,cb=col_map[t]
+        n_vq=sum(1 for v in grupo if v['is_vq'])
         ws.cell(r_tot,ca,len(grupo)).font=Font(name='Arial',bold=True,color=WHITE,size=9)
         ws.cell(r_tot,ca).fill=xf(BLUE); ws.cell(r_tot,ca).alignment=xc(); ws.cell(r_tot,ca).border=xb()
-        n_vq=sum(1 for v in grupo if v['is_vq'])
         ws.cell(r_tot,cb,n_vq).font=Font(name='Arial',bold=True,color=WHITE,size=9)
         ws.cell(r_tot,cb).fill=xf(BLUE); ws.cell(r_tot,cb).alignment=xc(); ws.cell(r_tot,cb).border=xb()
     ws.row_dimensions[r_tot].height=18
