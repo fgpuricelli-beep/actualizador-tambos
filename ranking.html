@@ -391,7 +391,17 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         elif nro_lact and nro_lact == 2: kg_base = 270
         else: kg_base = 250  # paridad 1 o desconocida
         factores = [1.0, 0.6, 0.4] + [0.25] * max(0, mc_act - 3)
-        litros_perd_prod_mc = round(sum(kg_base * f for f in factores[:mc_act]), 1) if mc_act > 0 else 0
+        # Ajuste por tercio de lactancia (solo al 1er episodio, que tiene fecha real via Ini.Lact)
+        # Lactancia de 305 dias: 1er tercio 0-101d=100%, 2do tercio 102-203d=65%, 3er tercio 204+d=25%
+        # Estimacion propia basada en la tendencia descripta en DeGraves & Fetrow 1993
+        # (mayor perdida en casos tempranos, perdida minima tras 8 meses de lactancia)
+        factores_ajustados = list(factores[:mc_act])
+        if factores_ajustados and primer_ep is not None:
+            if primer_ep <= 101: tercio_factor = 1.0
+            elif primer_ep <= 203: tercio_factor = 0.65
+            else: tercio_factor = 0.25
+            factores_ajustados[0] = factores_ajustados[0] * tercio_factor
+        litros_perd_prod_mc = round(sum(kg_base * f for f in factores_ajustados), 1) if mc_act > 0 else 0
         perdida_prod_mc = round(litros_perd_prod_mc * precio_litro, 0)
 
         # 2. Perdida por RCS - promedio del Score Lineal de la lactancia actual
