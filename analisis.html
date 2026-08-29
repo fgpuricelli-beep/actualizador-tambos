@@ -538,13 +538,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list):
         if u < 200 and p > 200: return 'NI'
         return None
 
-    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs
-    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq']
+    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs, excluyendo secas
+    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq'] and not v['is_seca']
                  and v['u3c'] is not None and v['u3c'] > 0
                  and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
-    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs
-    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq']
+    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs, excluyendo secas
+    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq'] and not v['is_seca']
                and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
     grupos = [(t,[v for v in vacas_sec if v['tambo']==t]) for t in tambos_list]
