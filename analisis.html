@@ -222,9 +222,13 @@ def parse_base(excel_data):
         le = ws.cell(r, found.get('Le.UC',0)).value if found.get('Le.UC') else None
         re = ws.cell(r, found.get('Re.UC',0)).value if found.get('Re.UC') else None
         ini_lact = ws.cell(r, found.get('Ini.Lact',0)).value if found.get('Ini.Lact') else None
-        rcs_act = ws.cell(r, col_act).value if col_act else re
+        # rcs_act = Re.UC (resumen final), que es siempre el control mas reciente.
+        # El actualizador nuevo mantiene sincronizada la ultima columna del bloque
+        # mensual "RCS (x1000 cel/ml)" con Re.UC (mismo mes, mismo valor), por lo
+        # que el control ANTERIOR real es la PENULTIMA columna del bloque (col_ant).
+        rcs_act = re
         rcs_ant = ws.cell(r, col_ant).value if col_ant else None
-        if rcs_act is None: rcs_act = re
+        if rcs_act is None: rcs_act = ws.cell(r, col_act).value if col_act else None
 
         # u3c = ultimo RCS de la lactancia ANTERIOR (antes del mes de ini_lact)
         # 1c  = primer RCS de la lactancia ACTUAL (desde el mes de ini_lact en adelante)
@@ -538,13 +542,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list):
         if u < 200 and p > 200: return 'NI'
         return None
 
-    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs, excluyendo secas
-    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq'] and not v['is_seca']
+    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs
+    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq']
                  and v['u3c'] is not None and v['u3c'] > 0
                  and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
-    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs, excluyendo secas
-    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq'] and not v['is_seca']
+    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs
+    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq']
                and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
     grupos = [(t,[v for v in vacas_sec if v['tambo']==t]) for t in tambos_list]
