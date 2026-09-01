@@ -306,7 +306,8 @@ def parse_base(excel_data):
                       'u3c':u3c,'first_rcs':first_rcs,'first_rcs_date':first_rcs_date})
 
     tambos_list = sorted(set(v['tambo'] for v in vacas))
-    return vacas, tambos_list
+    mes_datos = mc_col_dates[mc_max] if mc_col_dates else datetime.date.today()
+    return vacas, tambos_list, mes_datos
 
 def calc_resultado(vacas_grupo):
     en_ordeno = [v for v in vacas_grupo if not v['is_seca'] and v['le']>0 and v['rcs_act']>0]
@@ -452,15 +453,17 @@ def generar_analisis_rcs_sheet(wb_out, vacas, tambos_list):
         ws.row_dimensions[r].height=14
     ws.freeze_panes='A2'
 
-def generar_mc_del_sheet(wb_out, vacas):
+def generar_mc_del_sheet(wb_out, vacas, mes_datos):
     if 'MC vs DEL' in wb_out.sheetnames: del wb_out['MC vs DEL']
     ws=wb_out.create_sheet('MC vs DEL')
 
-    # Mes cerrado (anterior al actual) y mes en curso
-    today = datetime.date.today()
-    if today.month == 1: mes_m_ant, mes_y_ant = 12, today.year-1
-    else: mes_m_ant, mes_y_ant = today.month-1, today.year
-    mes_m_act, mes_y_act = today.month, today.year
+    # Mes actual = ultimo mes con columna cargada en el bloque MC de la base
+    # (NO la fecha del sistema: eso rompia si se corria el analisis en un mes
+    # distinto al de los datos, por ej. corriendo en septiembre datos de agosto).
+    # Mes cerrado anterior = el mes calendario previo a ese.
+    if mes_datos.month == 1: mes_m_ant, mes_y_ant = 12, mes_datos.year-1
+    else: mes_m_ant, mes_y_ant = mes_datos.month-1, mes_datos.year
+    mes_m_act, mes_y_act = mes_datos.month, mes_datos.year
     meses = [(mes_m_ant, mes_y_ant, 'ant'), (mes_m_act, mes_y_act, 'act')]
     mes_labels = {m: datetime.date(y,m,1).strftime('%b %Y').upper() for m,y,_ in meses}
 
@@ -530,14 +533,13 @@ def generar_mc_del_sheet(wb_out, vacas):
     ws.row_dimensions[r_tot].height=18
     ws.freeze_panes='B4'
 
-def generar_secado_sheet(wb_out, vacas, tambos_list):
+def generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos):
     if 'Secado' in wb_out.sheetnames: del wb_out['Secado']
     ws=wb_out.create_sheet('Secado')
 
-    # Mes cerrado
-    today = datetime.date.today()
-    if today.month == 1: mes_m, mes_y = 12, today.year-1
-    else: mes_m, mes_y = today.month-1, today.year
+    # Mes cerrado = ultimo mes con columna cargada en el bloque MC de la base
+    # (no la fecha del sistema, ver nota en generar_mc_del_sheet)
+    mes_m, mes_y = mes_datos.month, mes_datos.year
 
     # Vacas cuyo PRIMER control lechero post-parto (1c) cae en el mes analizado.
     # No se usa DEL/fecha de parto: eso duplicaba vacas que ya tenian su 2do
@@ -708,13 +710,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list):
     ws.row_dimensions[row].height=18
 
 def generar_analisis(excel_data):
-    vacas, tambos_list = parse_base(excel_data)
+    vacas, tambos_list, mes_datos = parse_base(excel_data)
     wb_out = load_workbook(io.BytesIO(bytes(excel_data)))
 
     generar_resultado_sheet(wb_out, vacas, tambos_list)
     generar_analisis_rcs_sheet(wb_out, vacas, tambos_list)
-    generar_mc_del_sheet(wb_out, vacas)
-    generar_secado_sheet(wb_out, vacas, tambos_list)
+    generar_mc_del_sheet(wb_out, vacas, mes_datos)
+    generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos)
 
     out=io.BytesIO(); wb_out.save(out); out.seek(0)
     n_ordeno=sum(1 for v in vacas if not v['is_seca'])
