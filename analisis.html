@@ -238,6 +238,7 @@ def parse_base(excel_data):
         # con control cargado en la columna 2026-08-01 quedaba "antes" del parto por error).
         u3c = None
         first_rcs = None
+        first_rcs_date = None
         if ini_lact:
             ini_date_s = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
             ini_ym = (ini_date_s.year, ini_date_s.month)
@@ -247,7 +248,11 @@ def parse_base(excel_data):
                 if (d.year, d.month) < ini_ym:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
-                        try: u3c = float(v2); break
+                        try:
+                            v2f = float(v2)
+                            if v2f > 0:
+                                u3c = v2f
+                                break
                         except: pass
             # Primer RCS desde el mes de parto en adelante = 1c
             for c in rcs_sorted:
@@ -255,7 +260,12 @@ def parse_base(excel_data):
                 if (d.year, d.month) >= ini_ym:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
-                        try: first_rcs = float(v2); break
+                        try:
+                            v2f = float(v2)
+                            if v2f > 0:
+                                first_rcs = v2f
+                                first_rcs_date = d
+                                break
                         except: pass
         mc_first_del = None
         mc_first_date = None
@@ -293,7 +303,7 @@ def parse_base(excel_data):
                       'rcs_act':rcs_act_f,'rcs_ant':rcs_ant_f,'ni':ni,
                       'is_seca':is_seca,'is_vq':nl_i==1,
                       'mc_first_del':mc_first_del,'mc_first_date':mc_first_date,
-                      'u3c':u3c,'first_rcs':first_rcs})
+                      'u3c':u3c,'first_rcs':first_rcs,'first_rcs_date':first_rcs_date})
 
     tambos_list = sorted(set(v['tambo'] for v in vacas))
     return vacas, tambos_list
@@ -446,71 +456,79 @@ def generar_mc_del_sheet(wb_out, vacas):
     if 'MC vs DEL' in wb_out.sheetnames: del wb_out['MC vs DEL']
     ws=wb_out.create_sheet('MC vs DEL')
 
-    # Mes cerrado = mes anterior al actual
+    # Mes cerrado (anterior al actual) y mes en curso
     today = datetime.date.today()
-    if today.month == 1: mes_m, mes_y = 12, today.year-1
-    else: mes_m, mes_y = today.month-1, today.year
-    mes_label = datetime.date(mes_y, mes_m, 1).strftime('%b %Y').upper()
+    if today.month == 1: mes_m_ant, mes_y_ant = 12, today.year-1
+    else: mes_m_ant, mes_y_ant = today.month-1, today.year
+    mes_m_act, mes_y_act = today.month, today.year
+    meses = [(mes_m_ant, mes_y_ant, 'ant'), (mes_m_act, mes_y_act, 'act')]
+    mes_labels = {m: datetime.date(y,m,1).strftime('%b %Y').upper() for m,y,_ in meses}
 
-    def mc_en_mes(v):
+    def mc_en_mes(v, mes_m, mes_y):
         if v['mc_first_del'] is None or v['is_seca'] or v['mc_first_date'] is None: return False
         return v['mc_first_date'].month == mes_m and v['mc_first_date'].year == mes_y
 
     rangos = [(0,30),(31,60),(61,90),(91,120),(121,150),(151,180),(181,210),(211,240),(241,270),(271,300),(301,9999)]
     rangos_labels = ['0-30','31-60','61-90','91-120','121-150','151-180','181-210','211-240','241-270','271-300','>300']
 
-    ws.merge_cells('A1:A2'); ws['A1']='Rango DEL'
+    ws.merge_cells('A1:A3'); ws['A1']='Rango DEL'
     ws['A1'].font=xh(); ws['A1'].fill=xf(BLUE); ws['A1'].alignment=xc(); ws['A1'].border=xb()
     ws.column_dimensions['A'].width=12
 
     col=2
     tambos_all = sorted(set(v['tambo'] for v in vacas if not v['is_seca']))
-    col_map={}
+    col_map={}  # col_map[t][mes_m,mes_y] = (col_todas, col_lact1)
+    def draw_tambo_header(t, label):
+        nonlocal col
+        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+3)
+        ws.cell(1,col,label).font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
+        col_map[t]={}
+        for mes_m,mes_y,_ in meses:
+            ws.merge_cells(start_row=2,start_column=col,end_row=2,end_column=col+1)
+            ws.cell(2,col,mes_labels[mes_m]).font=xh(size=8); ws.cell(2,col).fill=xf('34495E'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
+            ws.cell(3,col,'Todas').font=xh(size=8); ws.cell(3,col).fill=xf('2C3E50'); ws.cell(3,col).alignment=xc(); ws.cell(3,col).border=xb()
+            ws.cell(3,col+1,'Lact.1').font=xh(size=8); ws.cell(3,col+1).fill=xf('2C3E50'); ws.cell(3,col+1).alignment=xc(); ws.cell(3,col+1).border=xb()
+            ws.column_dimensions[get_column_letter(col)].width=10
+            ws.column_dimensions[get_column_letter(col+1)].width=10
+            col_map[t][(mes_m,mes_y)]=(col,col+1)
+            col+=2
+
     for t in tambos_all:
-        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
-        ws.cell(1,col,f'{t} - {mes_label}').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
-        ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
-        ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
-        ws.column_dimensions[get_column_letter(col)].width=10
-        ws.column_dimensions[get_column_letter(col+1)].width=10
-        col_map[t]=(col,col+1); col+=2
+        draw_tambo_header(t, t)
 
     if len(tambos_all)>1:
-        ws.merge_cells(start_row=1,start_column=col,end_row=1,end_column=col+1)
-        ws.cell(1,col,f'TOTAL - {mes_label}').font=xh(); ws.cell(1,col).fill=xf(BLUE); ws.cell(1,col).alignment=xc(); ws.cell(1,col).border=xb()
-        ws.cell(2,col,'Todas').font=xh(size=8); ws.cell(2,col).fill=xf('2C3E50'); ws.cell(2,col).alignment=xc(); ws.cell(2,col).border=xb()
-        ws.cell(2,col+1,'Lact.1').font=xh(size=8); ws.cell(2,col+1).fill=xf('2C3E50'); ws.cell(2,col+1).alignment=xc(); ws.cell(2,col+1).border=xb()
-        ws.column_dimensions[get_column_letter(col)].width=10
-        ws.column_dimensions[get_column_letter(col+1)].width=10
-        col_map['TOTAL']=(col,col+1)
+        draw_tambo_header('TOTAL', 'TOTAL')
         tambos_all.append('TOTAL')
 
-    ws.row_dimensions[1].height=20; ws.row_dimensions[2].height=18
+    ws.row_dimensions[1].height=20; ws.row_dimensions[2].height=16; ws.row_dimensions[3].height=18
 
     for ri,((d_ini,d_fin),label) in enumerate(zip(rangos,rangos_labels)):
-        r=ri+3; bg=GREY if r%2==0 else WHITE
+        r=ri+4; bg=GREY if r%2==0 else WHITE
         ws.cell(r,1,label).font=Font(name='Arial',size=9); ws.cell(r,1).alignment=xc(); ws.cell(r,1).border=xb(); ws.cell(r,1).fill=xf(bg)
         for t in tambos_all:
-            grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v)]
-            n_todas=sum(1 for v in grupo if d_ini<=v['mc_first_del']<=d_fin)
-            n_lact1=sum(1 for v in grupo if v['is_vq'] and d_ini<=v['mc_first_del']<=d_fin)
-            ca,cb=col_map[t]
-            ws.cell(r,ca,n_todas if n_todas>0 else '').font=Font(name='Arial',size=9); ws.cell(r,ca).alignment=xc(); ws.cell(r,ca).border=xb(); ws.cell(r,ca).fill=xf(bg)
-            ws.cell(r,cb,n_lact1 if n_lact1>0 else '').font=Font(name='Arial',size=9); ws.cell(r,cb).alignment=xc(); ws.cell(r,cb).border=xb(); ws.cell(r,cb).fill=xf(bg)
+            for mes_m,mes_y,_ in meses:
+                grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v,mes_m,mes_y)]
+                n_todas=sum(1 for v in grupo if d_ini<=v['mc_first_del']<=d_fin)
+                n_lact1=sum(1 for v in grupo if v['is_vq'] and d_ini<=v['mc_first_del']<=d_fin)
+                ca,cb=col_map[t][(mes_m,mes_y)]
+                ws.cell(r,ca,n_todas if n_todas>0 else '').font=Font(name='Arial',size=9); ws.cell(r,ca).alignment=xc(); ws.cell(r,ca).border=xb(); ws.cell(r,ca).fill=xf(bg)
+                ws.cell(r,cb,n_lact1 if n_lact1>0 else '').font=Font(name='Arial',size=9); ws.cell(r,cb).alignment=xc(); ws.cell(r,cb).border=xb(); ws.cell(r,cb).fill=xf(bg)
         ws.row_dimensions[r].height=16
 
-    r_tot=len(rangos)+3
+    r_tot=len(rangos)+4
     ws.cell(r_tot,1,'TOTAL').font=Font(name='Arial',bold=True,color=WHITE,size=9)
     ws.cell(r_tot,1).fill=xf(BLUE); ws.cell(r_tot,1).alignment=xc(); ws.cell(r_tot,1).border=xb()
     for t in tambos_all:
-        grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v)]
-        ca,cb=col_map[t]
-        n_vq=sum(1 for v in grupo if v['is_vq'])
-        ws.cell(r_tot,ca,len(grupo)).font=Font(name='Arial',bold=True,color=WHITE,size=9)
-        ws.cell(r_tot,ca).fill=xf(BLUE); ws.cell(r_tot,ca).alignment=xc(); ws.cell(r_tot,ca).border=xb()
-        ws.cell(r_tot,cb,n_vq).font=Font(name='Arial',bold=True,color=WHITE,size=9)
-        ws.cell(r_tot,cb).fill=xf(BLUE); ws.cell(r_tot,cb).alignment=xc(); ws.cell(r_tot,cb).border=xb()
+        for mes_m,mes_y,_ in meses:
+            grupo=[v for v in vacas if (v['tambo']==t or t=='TOTAL') and mc_en_mes(v,mes_m,mes_y)]
+            ca,cb=col_map[t][(mes_m,mes_y)]
+            n_vq=sum(1 for v in grupo if v['is_vq'])
+            ws.cell(r_tot,ca,len(grupo)).font=Font(name='Arial',bold=True,color=WHITE,size=9)
+            ws.cell(r_tot,ca).fill=xf(BLUE); ws.cell(r_tot,ca).alignment=xc(); ws.cell(r_tot,ca).border=xb()
+            ws.cell(r_tot,cb,n_vq).font=Font(name='Arial',bold=True,color=WHITE,size=9)
+            ws.cell(r_tot,cb).fill=xf(BLUE); ws.cell(r_tot,cb).alignment=xc(); ws.cell(r_tot,cb).border=xb()
     ws.row_dimensions[r_tot].height=18
+    ws.freeze_panes='B4'
 
 def generar_secado_sheet(wb_out, vacas, tambos_list):
     if 'Secado' in wb_out.sheetnames: del wb_out['Secado']
@@ -521,10 +539,15 @@ def generar_secado_sheet(wb_out, vacas, tambos_list):
     if today.month == 1: mes_m, mes_y = 12, today.year-1
     else: mes_m, mes_y = today.month-1, today.year
 
-    # Vacas paridas en el mes analizado con DEL 0-35
+    # Vacas cuyo PRIMER control lechero post-parto (1c) cae en el mes analizado.
+    # No se usa DEL/fecha de parto: eso duplicaba vacas que ya tenian su 2do
+    # control dentro de la ventana de 35 dias, cuando esa vaca ya habia sido
+    # evaluada el mes anterior (con su 1er control). Cada vaca entra una sola
+    # vez, en el mes de su primer control real, sin importar cuando parió.
     def parida_en_mes(v):
-        if v['dias'] is None or v['dias'] <= 0 or v['dias'] > 35: return False
-        return True
+        d = v.get('first_rcs_date')
+        if d is None: return False
+        return d.year == mes_y and d.month == mes_m
 
     rangos_rcs = [(0,200),(201,300),(301,500),(501,99999)]
     rangos_labels = ['0-200','201-300','301-500','>500']
@@ -542,13 +565,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list):
         if u < 200 and p > 200: return 'NI'
         return None
 
-    # Section 1: VACAS (lact > 1) - paridas en el mes con u3c y first_rcs
-    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq']
+    # Section 1: VACAS (lact > 1) - con u3c y first_rcs, excluyendo secas
+    vacas_sec = [v for v in vacas if parida_en_mes(v) and not v['is_vq'] and not v['is_seca']
                  and v['u3c'] is not None and v['u3c'] > 0
                  and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
-    # Section 2: VAQUILLONAS (lact = 1) - paridas en el mes con solo first_rcs
-    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq']
+    # Section 2: VAQUILLONAS (lact = 1) - con solo first_rcs, excluyendo secas
+    vqs_sec = [v for v in vacas if parida_en_mes(v) and v['is_vq'] and not v['is_seca']
                and v['first_rcs'] is not None and v['first_rcs'] > 0]
 
     grupos = [(t,[v for v in vacas_sec if v['tambo']==t]) for t in tambos_list]
