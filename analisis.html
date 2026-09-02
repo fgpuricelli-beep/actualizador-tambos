@@ -307,7 +307,8 @@ def parse_base(excel_data):
 
     tambos_list = sorted(set(v['tambo'] for v in vacas))
     mes_datos = mc_col_dates[mc_max] if mc_col_dates else datetime.date.today()
-    return vacas, tambos_list, mes_datos
+    mes_datos_rcs = rcs_col_dates[rcs_sorted[-1]] if rcs_sorted else mes_datos
+    return vacas, tambos_list, mes_datos, mes_datos_rcs
 
 def calc_resultado(vacas_grupo):
     en_ordeno = [v for v in vacas_grupo if not v['is_seca'] and v['le']>0 and v['rcs_act']>0]
@@ -533,13 +534,15 @@ def generar_mc_del_sheet(wb_out, vacas, mes_datos):
     ws.row_dimensions[r_tot].height=18
     ws.freeze_panes='B4'
 
-def generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos):
+def generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos_rcs):
     if 'Secado' in wb_out.sheetnames: del wb_out['Secado']
     ws=wb_out.create_sheet('Secado')
 
-    # Mes cerrado = ultimo mes con columna cargada en el bloque MC de la base
-    # (no la fecha del sistema, ver nota en generar_mc_del_sheet)
-    mes_m, mes_y = mes_datos.month, mes_datos.year
+    # Mes cerrado = ultimo mes con columna cargada en el bloque RCS de la base
+    # (propio de RCS, no del bloque MC: a veces MC esta cargado un mes mas
+    # adelante que RCS, y si se usa la referencia de MC no hay ninguna vaca
+    # con 1er control en ese mes porque el bloque RCS todavia no llega ahi)
+    mes_m, mes_y = mes_datos_rcs.month, mes_datos_rcs.year
 
     # Vacas cuyo PRIMER control lechero post-parto (1c) cae en el mes analizado.
     # No se usa DEL/fecha de parto: eso duplicaba vacas que ya tenian su 2do
@@ -710,13 +713,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos):
     ws.row_dimensions[row].height=18
 
 def generar_analisis(excel_data):
-    vacas, tambos_list, mes_datos = parse_base(excel_data)
+    vacas, tambos_list, mes_datos, mes_datos_rcs = parse_base(excel_data)
     wb_out = load_workbook(io.BytesIO(bytes(excel_data)))
 
     generar_resultado_sheet(wb_out, vacas, tambos_list)
     generar_analisis_rcs_sheet(wb_out, vacas, tambos_list)
     generar_mc_del_sheet(wb_out, vacas, mes_datos)
-    generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos)
+    generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos_rcs)
 
     out=io.BytesIO(); wb_out.save(out); out.seek(0)
     n_ordeno=sum(1 for v in vacas if not v['is_seca'])
