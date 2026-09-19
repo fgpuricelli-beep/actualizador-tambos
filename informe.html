@@ -145,6 +145,14 @@
     </div>
   </div>
 
+  <div class="card" id="card1b" style="display:none">
+    <div class="card-header">
+      <div class="step-num">•</div>
+      <div><div class="card-title">Elegi el tambo</div><div class="card-desc">Este Excel tiene mas de una hoja de informe</div></div>
+    </div>
+    <select id="select-sheet" style="width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px" onchange="onSheetSelected(this.value)"></select>
+  </div>
+
   <div class="card" id="card2">
     <div class="card-header">
       <div class="step-num" id="num2">2</div>
@@ -166,7 +174,7 @@
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-let pyodide = null, pyReady = false, excelBytes = null, informeData = null, charts = [];
+let pyodide = null, pyReady = false, excelBytes = null, informeData = null, charts = [], selectedSheet = null;
 
 const PYTHON_CODE = `
 import io, json, re, datetime
@@ -178,24 +186,41 @@ MESES_ABR = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',7:'Jul',8:'Ago',9:'
 def norm(s):
     return str(s or '').strip().lower()
 
-def find_sheet(wb):
+def find_all_sheets(wb):
+    found = []
     for name in wb.sheetnames:
         ws = wb[name]
         for r in range(1, 25):
             if norm(ws.cell(r,1).value) == 'parametro':
-                return ws, r
+                found.append((name, r))
+                break
+    if found:
+        return found
     for name in wb.sheetnames:
         if 'informe' in name.lower():
-            ws = wb[name]
-            for r in range(1, 25):
-                if norm(ws.cell(r,1).value) == 'parametro':
-                    return ws, r
-            return ws, None
-    return wb[wb.sheetnames[0]], None
+            return [(name, None)]
+    return [(wb.sheetnames[0], None)]
 
-def parse_informe(excel_data):
+def list_sheets(excel_data):
     wb = load_workbook(io.BytesIO(bytes(excel_data)), data_only=True)
-    ws, header_row = find_sheet(wb)
+    out = []
+    for name, header_row in find_all_sheets(wb):
+        ws = wb[name]
+        establecimiento = str(ws.cell(1,1).value or '').strip() or name
+        out.append({'sheet': name, 'establecimiento': establecimiento})
+    return json.dumps(out)
+
+def parse_informe(excel_data, sheet_name=None):
+    wb = load_workbook(io.BytesIO(bytes(excel_data)), data_only=True)
+    if sheet_name and sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        header_row = None
+        for r in range(1, 25):
+            if norm(ws.cell(r,1).value) == 'parametro':
+                header_row = r; break
+    else:
+        name0, header_row = find_all_sheets(wb)[0]
+        ws = wb[name0]
     establecimiento = str(ws.cell(1,1).value or '').strip() or ws.title
 
     result = {'establecimiento': establecimiento, 'meses': [], 'meses_full': [], 'kpis': {}, 'anual': {}, 'ok': header_row is not None}
@@ -315,7 +340,39 @@ async function handleExcel(input) {
   document.getElementById('excel-name').textContent = file.name;
   document.getElementById('info-excel').classList.add('visible');
   document.getElementById('card1').classList.add('done');
+  selectedSheet = null;
+
+  const card1b = document.getElementById('card1b');
+  const sel = document.getElementById('select-sheet');
+  card1b.style.display = 'none';
+  sel.innerHTML = '';
+
+  if (pyReady) {
+    try {
+      pyodide.globals.set('excel_data_js', excelBytes);
+      const jsonStr = await pyodide.runPythonAsync('list_sheets(excel_data_js.to_py())');
+      const sheets = JSON.parse(jsonStr);
+      if (sheets.length > 1) {
+        sheets.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.sheet;
+          opt.textContent = s.establecimiento + ' (' + s.sheet + ')';
+          sel.appendChild(opt);
+        });
+        card1b.style.display = 'block';
+        selectedSheet = sheets[0].sheet;
+      } else if (sheets.length === 1) {
+        selectedSheet = sheets[0].sheet;
+      }
+    } catch(e) {
+      // si falla la deteccion previa, parse_informe hara su propio intento sin sheet_name
+    }
+  }
   checkReady();
+}
+
+function onSheetSelected(val) {
+  selectedSheet = val;
 }
 
 function fmtPct(v, dec) {
@@ -343,7 +400,8 @@ async function runInforme() {
   btnText.innerHTML = '<span class="spinner"></span> Generando...';
   try {
     pyodide.globals.set('excel_data_js', excelBytes);
-    const jsonStr = await pyodide.runPythonAsync('parse_informe(excel_data_js.to_py())');
+    const sheetArg = selectedSheet ? `'${selectedSheet.replace(/'/g, "\\'")}'` : 'None';
+    const jsonStr = await pyodide.runPythonAsync(`parse_informe(excel_data_js.to_py(), ${sheetArg})`);
     informeData = JSON.parse(jsonStr);
     if (!informeData.ok) throw new Error('No se encontro la hoja de informe en el Excel (deberia tener una celda "parametro" en la columna A).');
     document.getElementById('excel-tambo').textContent = informeData.establecimiento;
