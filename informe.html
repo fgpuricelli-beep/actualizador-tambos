@@ -284,7 +284,7 @@ def parse_informe(excel_data):
     pyodide = await loadPyodide();
     status.textContent = 'Instalando openpyxl...';
     await pyodide.loadPackage('micropip');
-    await pyodide.runPythonAsync('import micropip\\nawait micropip.install("openpyxl")');
+    await pyodide.runPythonAsync('import micropip\nawait micropip.install("openpyxl")');
     await pyodide.runPythonAsync(PYTHON_CODE);
     pyReady = true;
     status.textContent = 'Motor Python listo';
