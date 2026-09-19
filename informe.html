@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe Mensual - Tambos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+  :root{--bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3050;--accent:#4f8ef7;--accent2:#38d9a9;--danger:#ff6b6b;--warn:#ffa94d;--text:#e8eaf2;--text2:#8892b0;--text3:#4a5580}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;padding:40px 20px}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0}
+  .container{max-width:720px;margin:0 auto;position:relative;z-index:1}
+  .header{margin-bottom:40px}
+  .header-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .header-tag::before{content:'';width:24px;height:1px;background:var(--accent)}
+  h1{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-bottom:10px}
+  h1 span{color:var(--accent)}
+  .subtitle{color:var(--text2);font-size:14px;font-weight:300;line-height:1.6}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;transition:border-color .2s}
+  .card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 32px rgba(79,142,247,.08)}
+  .card.done{border-color:var(--accent2)}
+  .card-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .step-num{width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;color:var(--text2);flex-shrink:0}
+  .card.done .step-num{background:var(--accent2);border-color:var(--accent2);color:#0f1117;font-weight:700}
+  .card-title{font-size:15px;font-weight:600}
+  .card-desc{font-size:12px;color:var(--text2);font-weight:300;margin-top:2px}
+  .drop-zone{border:1.5px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative}
+  .drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.05)}
+  .drop-zone.loaded{border-color:var(--accent2);border-style:solid;background:rgba(56,217,169,.05)}
+  .drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .drop-icon{font-size:28px;margin-bottom:8px}
+  .drop-label{font-size:13px;color:var(--text2)}
+  .drop-label strong{color:var(--accent)}
+  .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
+  .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px)}
+  .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .error-box{background:rgba(255,107,107,.08);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:13px;color:var(--danger);margin-top:12px;display:none}
+  .error-box.visible{display:block}
+  .py-status{text-align:center;padding:10px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);background:var(--surface2);border-radius:8px;margin-bottom:20px}
+  .py-status.ready{color:var(--accent2)}.py-status.loading{color:var(--warn)}.py-status.error{color:var(--danger)}
+  .info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px;display:none}
+  .info-box.visible{display:block}
+  .info-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)}
+  .info-row:last-child{border-bottom:none}
+  .info-label{color:var(--text2);font-family:'DM Mono',monospace}
+  .info-val{color:var(--text);font-weight:600}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  #login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+  .login-title{font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px}
+  .login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .login-field input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border-color .2s}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
+  .login-btn:hover{background:#6a9ff9}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;text-align:center;display:none}
+  #app-content{display:none}
+
+  /* ---------- Informe (pantalla + impresion) ---------- */
+  #report-wrap{display:none;margin-top:24px}
+  #report{background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;font-family:'Sora',sans-serif}
+  #report .rp-header{background:#1F3864;color:#fff;padding:22px 26px}
+  #report .rp-header h2{font-size:22px;font-weight:700;margin-bottom:4px}
+  #report .rp-header .rp-sub{font-size:12.5px;color:#cbd5e1;font-weight:300}
+  #report .rp-body{padding:22px 26px}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:22px}
+  .kpi-card{border-radius:8px;padding:12px 10px;color:#fff;text-align:center}
+  .kpi-card .kl{font-size:9.5px;font-weight:700;letter-spacing:.3px;line-height:1.3;text-transform:uppercase}
+  .kpi-card .kv{font-size:24px;font-weight:700;line-height:1.3;margin:2px 0}
+  .kpi-card .ks{font-size:9.5px;opacity:.92}
+  .kpi-green{background:#1E8449}.kpi-amber{background:#D68910}.kpi-red{background:#C0392B}.kpi-blue{background:#2E86AB}
+  #report h3{color:#1F3864;font-size:15px;font-weight:700;margin:20px 0 6px}
+  #report h3:first-of-type{margin-top:4px}
+  #report .rp-intro{color:#5D6D7E;font-size:11.5px;margin-bottom:8px;line-height:1.5}
+  #report .bullets{list-style:none;margin-bottom:6px}
+  #report .bullets li{position:relative;padding-left:16px;font-size:12.3px;line-height:1.65;color:#2C3E50;margin-bottom:6px}
+  #report .bullets li::before{content:'●';color:#2E86AB;position:absolute;left:0;font-size:8px;top:5px}
+  #report hr{border:none;border-top:1px solid #D5DBDB;margin:14px 0}
+  .chart-block{margin-bottom:20px;page-break-inside:avoid;break-inside:avoid}
+  .chart-block canvas{max-height:230px}
+  #report .rp-footer{color:#95A5A6;font-size:9px;text-align:center;padding:14px 0 4px;border-top:1px solid #EAECEE;margin-top:10px}
+  .btn-print{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
+  .btn-print:hover{background:rgba(56,217,169,.1)}
+
+  @media print{
+    body>*:not(#report-wrap){display:none !important}
+    body{background:#fff;padding:0}
+    body::before{display:none}
+    #report-wrap{display:block !important;margin:0}
+    .btn-print{display:none !important}
+    #report{border-radius:0}
+    .chart-block{margin-bottom:14px}
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Sistema de Gestion</div>
+    <div class="login-sub">Informe Mensual — acceso restringido</div>
+    <div class="login-field">
+      <label>USUARIO</label>
+      <input type="text" id="login-user" placeholder="Usuario" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>CONTRASENA</label>
+      <input type="password" id="login-pass" placeholder="Contrasena" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contrasena incorrectos</div>
+  </div>
+</div>
+
+<div id="app-content">
+<div class="container">
+  <div class="header">
+    <div class="header-tag">Sistema de Gestion</div>
+    <h1>Informe<br><span>Mensual</span></h1>
+    <p class="subtitle">Subi el Excel del tambo (hoja tipo "Informe SJ") y genera el informe para el productor, listo para imprimir o guardar como PDF.</p>
+  </div>
+
+  <div class="py-status loading" id="py-status">Cargando motor Python... (puede tardar ~30 segundos)</div>
+
+  <div class="card active" id="card1">
+    <div class="card-header">
+      <div class="step-num" id="num1">1</div>
+      <div><div class="card-title">Excel del tambo</div><div class="card-desc">Con la hoja de informe (igual estructura que San Jose)</div></div>
+    </div>
+    <div class="drop-zone" id="drop-excel">
+      <input type="file" id="file-excel" accept=".xlsx,.xls" onchange="handleExcel(this)">
+      <div class="drop-icon">📄</div>
+      <div class="drop-label" id="label-excel">Hace clic o arrastra el <strong>Excel</strong> aca</div>
+    </div>
+    <div class="info-box" id="info-excel">
+      <div class="info-row"><span class="info-label">Archivo</span><span class="info-val" id="excel-name">--</span></div>
+      <div class="info-row"><span class="info-label">Establecimiento</span><span class="info-val" id="excel-tambo">--</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="card2">
+    <div class="card-header">
+      <div class="step-num" id="num2">2</div>
+      <div><div class="card-title">Generar Informe</div><div class="card-desc">Resumen, indicadores y graficos para el productor</div></div>
+    </div>
+    <button class="btn-run" id="btn-run" disabled onclick="runInforme()">
+      <span id="btn-text">Generar Informe</span>
+    </button>
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <div id="report-wrap">
+    <button class="btn-print" onclick="window.print()">Imprimir / Guardar como PDF</button>
+    <div id="report"></div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+let pyodide = null, pyReady = false, excelBytes = null, informeData = null, charts = [];
+
+const PYTHON_CODE = `
+import io, json, re, datetime
+from openpyxl import load_workbook
+
+MESES_ES = {1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'}
+MESES_ABR = {1:'Ene',2:'Feb',3:'Mar',4:'Abr',5:'May',6:'Jun',7:'Jul',8:'Ago',9:'Sep',10:'Oct',11:'Nov',12:'Dic'}
+
+def norm(s):
+    return str(s or '').strip().lower()
+
+def find_sheet(wb):
+    for name in wb.sheetnames:
+        ws = wb[name]
+        for r in range(1, 25):
+            if norm(ws.cell(r,1).value) == 'parametro':
+                return ws, r
+    for name in wb.sheetnames:
+        if 'informe' in name.lower():
+            ws = wb[name]
+            for r in range(1, 25):
+                if norm(ws.cell(r,1).value) == 'parametro':
+                    return ws, r
+            return ws, None
+    return wb[wb.sheetnames[0]], None
+
+def parse_informe(excel_data):
+    wb = load_workbook(io.BytesIO(bytes(excel_data)), data_only=True)
+    ws, header_row = find_sheet(wb)
+    establecimiento = str(ws.cell(1,1).value or '').strip() or ws.title
+
+    result = {'establecimiento': establecimiento, 'meses': [], 'meses_full': [], 'kpis': {}, 'anual': {}, 'ok': header_row is not None}
+    if header_row is None:
+        return json.dumps(result)
+
+    mes_cols = []
+    c = 2
+    blancos = 0
+    while c <= ws.max_column and blancos < 3:
+        v = ws.cell(header_row, c).value
+        if isinstance(v, datetime.datetime):
+            mes_cols.append((c, v)); blancos = 0
+        else:
+            blancos += 1
+        c += 1
+    result['meses'] = [MESES_ABR[v.month] for c,v in mes_cols]
+    result['meses_full'] = [f"{MESES_ES[v.month]} {v.year}" for c,v in mes_cols]
+
+    def read_row(predicate, rmin, rmax, skip_zero=True):
+        for r in range(rmin, rmax+1):
+            lbl = norm(ws.cell(r,1).value)
+            if not lbl: continue
+            if predicate(lbl):
+                vals = []
+                for c,_ in mes_cols:
+                    v = ws.cell(r,c).value
+                    if not isinstance(v,(int,float)): v = None
+                    elif skip_zero and v == 0: v = None
+                    vals.append(v)
+                return vals
+        return None
+
+    RMAX = header_row + 15
+    kpis = {}
+    kpis['ufc'] = read_row(lambda l: l.startswith('ufc'), header_row+1, RMAX)
+    kpis['rcs'] = read_row(lambda l: l.startswith('rcs') and 'promedio' not in l, header_row+1, RMAX)
+    kpis['rcs_5y'] = read_row(lambda l: l.startswith('rcs') and 'promedio' in l, header_row+1, RMAX)
+    kpis['pct_mastitis'] = read_row(lambda l: 'mastitis' in l and 'promedio' not in l and 'subclin' not in l and 'del' not in l, header_row+1, RMAX)
+    kpis['pct_mastitis_5y'] = read_row(lambda l: 'mastitis' in l and 'promedio' in l and 'subclin' not in l, header_row+1, RMAX)
+    kpis['prev_subclin'] = read_row(lambda l: 'preval' in l, header_row+1, RMAX)
+    kpis['inc_subclin'] = read_row(lambda l: 'inciden' in l and 'subclin' in l, header_row+1, RMAX)
+    result['kpis'] = kpis
+
+    anual = {'anios': None, 'del_lact1':None,'del_lact2p':None,'secado_lt200':None,'ni_parto':None,'cura_secado':None,'vaq_parto_lt200':None}
+    year_cols = None
+    r = header_row
+    max_r = ws.max_row
+    while r < max_r:
+        r += 1
+        row_years = []; cols_found = []
+        for c in range(2, min(ws.max_column, 30)+1):
+            v = ws.cell(r,c).value
+            if isinstance(v,(int,float)) and 1900 <= v <= 2100:
+                row_years.append(int(v)); cols_found.append(c)
+        if len(row_years) >= 3:
+            year_cols = list(zip(cols_found, row_years))
+            anual['anios'] = row_years
+            continue
+        if year_cols is None:
+            continue
+        lbl = norm(ws.cell(r,1).value)
+        if not lbl: continue
+        vals = []
+        for c,_ in year_cols:
+            v = ws.cell(r,c).value
+            vals.append(v if isinstance(v,(int,float)) else None)
+        words = set(re.split(r'[^a-z0-9+]+', lbl))
+        if 'lact' in lbl and '1' in words and '2' not in lbl:
+            anual['del_lact1'] = vals
+        elif 'lact' in lbl and ('2' in lbl or '+' in lbl):
+            anual['del_lact2p'] = vals
+        elif 'secad' in lbl and 'cura' not in lbl and 'parto' not in lbl:
+            anual['secado_lt200'] = vals
+        elif 'ni' in words and 'parto' in lbl:
+            anual['ni_parto'] = vals
+        elif 'cura' in lbl and 'secad' in lbl:
+            anual['cura_secado'] = vals
+        elif 'vaquillona' in lbl and 'parid' in lbl:
+            anual['vaq_parto_lt200'] = vals
+    result['anual'] = anual
+    return json.dumps(result)
+`;
+
+(async function() {
+  const status = document.getElementById('py-status');
+  try {
+    pyodide = await loadPyodide();
+    status.textContent = 'Instalando openpyxl...';
+    await pyodide.loadPackage('micropip');
+    await pyodide.runPythonAsync('import micropip\\nawait micropip.install("openpyxl")');
+    await pyodide.runPythonAsync(PYTHON_CODE);
+    pyReady = true;
+    status.textContent = 'Motor Python listo';
+    status.className = 'py-status ready';
+    checkReady();
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.className = 'py-status error';
+  }
+})();
+
+function readAsArrayBuffer(file) {
+  return new Promise((res,rej) => { const r=new FileReader(); r.onload=e=>res(new Uint8Array(e.target.result)); r.onerror=rej; r.readAsArrayBuffer(file); });
+}
+
+function checkReady() {
+  document.getElementById('btn-run').disabled = !(pyReady && excelBytes);
+}
+
+async function handleExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  excelBytes = await readAsArrayBuffer(file);
+  document.getElementById('label-excel').innerHTML = '<strong>' + file.name + '</strong> cargado';
+  document.getElementById('drop-excel').classList.add('loaded');
+  document.getElementById('excel-name').textContent = file.name;
+  document.getElementById('info-excel').classList.add('visible');
+  document.getElementById('card1').classList.add('done');
+  checkReady();
+}
+
+function fmtPct(v, dec) {
+  if (v === null || v === undefined) return null;
+  dec = dec===undefined?1:dec;
+  return (v*100).toFixed(dec).replace('.', ',') + '%';
+}
+function fmtNum(v, dec) {
+  if (v === null || v === undefined) return null;
+  dec = dec===undefined?0:dec;
+  return v.toFixed(dec).replace('.', ',');
+}
+function lastValid(arr) {
+  if (!arr) return {idx:-1, val:null};
+  for (let i=arr.length-1;i>=0;i--) if (arr[i]!==null && arr[i]!==undefined) return {idx:i, val:arr[i]};
+  return {idx:-1, val:null};
+}
+
+async function runInforme() {
+  const btn = document.getElementById('btn-run');
+  const btnText = document.getElementById('btn-text');
+  const errBox = document.getElementById('error-box');
+  errBox.classList.remove('visible'); errBox.textContent='';
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="spinner"></span> Generando...';
+  try {
+    pyodide.globals.set('excel_data_js', excelBytes);
+    const jsonStr = await pyodide.runPythonAsync('parse_informe(excel_data_js.to_py())');
+    informeData = JSON.parse(jsonStr);
+    if (!informeData.ok) throw new Error('No se encontro la hoja de informe en el Excel (deberia tener una celda "parametro" en la columna A).');
+    document.getElementById('excel-tambo').textContent = informeData.establecimiento;
+    document.getElementById('card2').classList.add('done');
+    buildReport(informeData);
+    document.getElementById('report-wrap').style.display = 'block';
+    document.getElementById('report-wrap').scrollIntoView({behavior:'smooth'});
+  } catch(e) {
+    errBox.textContent = 'Error: ' + e.message;
+    errBox.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Generar Informe';
+  }
+}
+
+const PALETTE = {navy:'#1F3864', blue:'#2E86AB', green:'#1E8449', amber:'#D68910', red:'#C0392B', grey:'#95A5A6', greyLine:'#BDC5CD'};
+
+function destroyCharts() { charts.forEach(c=>c.destroy()); charts = []; }
+
+function lineChart(canvasId, labels, series) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const ch = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: series.map(s=>({label:s.label, data:s.data, borderColor:s.color, backgroundColor:s.color, borderDash:s.dashed?[6,4]:[], tension:0.25, pointRadius:3.5, borderWidth:2.4})) },
+    options: { responsive:true, animation:false, plugins:{legend:{position:'top', labels:{boxWidth:14,font:{size:10.5}}}}, scales:{y:{ticks:{font:{size:9.5}}, grid:{color:'#EEF1F3'}}, x:{ticks:{font:{size:9.5}}, grid:{display:false}}} }
+  });
+  charts.push(ch);
+}
+
+function barChart(canvasId, labels, series, stacked) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const ch = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: series.map(s=>({label:s.label, data:s.data, backgroundColor:s.colors||s.color, borderRadius:3})) },
+    options: { responsive:true, animation:false, plugins:{legend:{display:series.length>1, position:'top', labels:{boxWidth:14,font:{size:10.5}}}, datalabels:false}, scales:{y:{ticks:{font:{size:9.5}}, grid:{color:'#EEF1F3'}}, x:{ticks:{font:{size:9.5}}, grid:{display:false}}} }
+  });
+  charts.push(ch);
+}
+
+function kpiCard(label, value, sub, cls) {
+  return `<div class="kpi-card ${cls}"><div class="kl">${label}</div><div class="kv">${value}</div><div class="ks">${sub}</div></div>`;
+}
+
+function buildReport(d) {
+  destroyCharts();
+  const k = d.kpis, a = d.anual;
+  const mesesLbl = d.meses, mesesFull = d.meses_full;
+  const rcsL0 = lastValid(k.rcs), mcL0 = lastValid(k.pct_mastitis);
+  const refIdx = rcsL0.val!==null ? rcsL0.idx : (mcL0.val!==null ? mcL0.idx : mesesFull.length-1);
+  const mesActualFull = mesesFull.length ? mesesFull[refIdx] : '';
+
+  let html = '';
+  html += `<div class="rp-header"><h2>INFORME MENSUAL DE CALIDAD DE LECHE</h2><div class="rp-sub">Establecimiento ${d.establecimiento} &nbsp;&middot;&nbsp; ${mesActualFull}</div></div>`;
+  html += `<div class="rp-body">`;
+
+  // ---- KPIs ----
+  let kpiHtml = '<div class="kpi-row">';
+  const rcsL = lastValid(k.rcs), rcs5L = k.rcs_5y ? k.rcs_5y[rcsL.idx] : null;
+  if (rcsL.val !== null) {
+    let sub = 'Ultimo dato disponible', cls = 'kpi-blue';
+    if (rcs5L !== null && rcs5L !== undefined) {
+      const delta = (rcsL.val - rcs5L) / rcs5L * 100;
+      sub = (delta<0?'-':'+') + Math.abs(delta).toFixed(0) + '% vs. promedio 5 anios';
+      cls = delta<0 ? 'kpi-green' : (delta<10 ? 'kpi-amber' : 'kpi-red');
+    }
+    kpiHtml += kpiCard('RCS (x1000 cél/ml)', fmtNum(rcsL.val), sub, cls);
+  }
+  const ufcL = lastValid(k.ufc);
+  if (ufcL.val !== null) kpiHtml += kpiCard('UFC (x1000)', fmtNum(ufcL.val), 'Ultimo dato disponible', 'kpi-blue');
+  const mcL = lastValid(k.pct_mastitis);
+  if (mcL.val !== null) {
+    let sub = mesesLbl[mcL.idx], cls = 'kpi-blue';
+    const mc5 = k.pct_mastitis_5y ? k.pct_mastitis_5y[mcL.idx] : null;
+    if (mc5 !== null && mc5 !== undefined) {
+      const delta = (mcL.val - mc5) / mc5 * 100;
+      sub = (delta<0?'-':'+') + Math.abs(delta).toFixed(0) + '% vs. promedio (' + mesesLbl[mcL.idx] + ')';
+      cls = delta<0 ? 'kpi-green' : (delta<15 ? 'kpi-amber' : 'kpi-red');
+    }
+    kpiHtml += kpiCard('% MASTITIS CLINICA', fmtPct(mcL.val), sub, cls);
+  }
+  const prevL = lastValid(k.prev_subclin);
+  if (prevL.val !== null) {
+    const isMin = k.prev_subclin.filter(v=>v!==null).every(v=>v>=prevL.val);
+    kpiHtml += kpiCard('PREVALENCIA SUBCLINICA', fmtPct(prevL.val), isMin?'Minimo del periodo':'Ultimo dato', isMin?'kpi-green':'kpi-blue');
+  }
+  kpiHtml += '</div>';
+  html += kpiHtml;
+
+  // ---- Resumen ----
+  let bullets = [];
+  if (rcsL.val !== null && rcs5L !== null && rcs5L !== undefined) {
+    const delta = (rcsL.val - rcs5L) / rcs5L * 100;
+    bullets.push(`El RCS de tanque cerro ${mesesLbl[rcsL.idx]} en ${fmtNum(rcsL.val)} mil cel/ml, ${Math.abs(delta).toFixed(0)}% ${delta<0?'por debajo':'por encima'} del promedio historico para ese mes (${fmtNum(rcs5L)} mil).`);
+  }
+  if (mcL.val !== null) {
+    const mc5 = k.pct_mastitis_5y ? k.pct_mastitis_5y[mcL.idx] : null;
+    const pend = mesesLbl.length - 1 - mcL.idx;
+    let txt = `La mastitis clinica de ${mesesLbl[mcL.idx]} fue ${fmtPct(mcL.val)}`;
+    if (mc5 !== null && mc5 !== undefined) {
+      const delta = (mcL.val - mc5) / mc5 * 100;
+      txt += `, ${Math.abs(delta).toFixed(0)}% ${delta<0?'por debajo':'por encima'} del promedio historico de ese mes (${fmtPct(mc5)})`;
+    }
+    txt += '.';
+    if (pend > 0) txt += ` ${pend===1?'El ultimo mes':'Los ultimos '+pend+' meses'} todavia no ${pend===1?'tiene':'tienen'} el dato cerrado.`;
+    bullets.push(txt);
+  }
+  if (prevL.val !== null && k.inc_subclin) {
+    const incL = lastValid(k.inc_subclin);
+    bullets.push(`La prevalencia y la incidencia de mastitis subclinica en ${mesesLbl[prevL.idx]} fueron ${fmtPct(prevL.val)} y ${incL.val!==null?fmtPct(incL.val):'s/d'} respectivamente.`);
+  }
+  if (a.del_lact1 && a.del_lact2p && a.anios) {
+    const n = a.anios.length;
+    if (n>=2 && a.del_lact1[n-1]!==null && a.del_lact1[n-2]!==null) {
+      bullets.push(`La mastitis en los primeros 30 dias de lactancia en ${a.anios[n-1]} fue de ${fmtPct(a.del_lact1[n-1])} en vaquillonas (vs ${fmtPct(a.del_lact1[n-2])} en ${a.anios[n-2]}) y ${fmtPct(a.del_lact2p[n-1])} en vacas de 2+ partos (vs ${fmtPct(a.del_lact2p[n-2])}).`);
+    }
+  }
+  if (a.ni_parto && a.cura_secado && a.anios) {
+    const n = a.anios.length;
+    if (n>=2 && a.ni_parto[n-1]!==null && a.cura_secado[n-1]!==null) {
+      bullets.push(`En el secado: la cura al secado en ${a.anios[n-1]} fue ${fmtPct(a.cura_secado[n-1])} (vs ${fmtPct(a.cura_secado[n-2])} en ${a.anios[n-2]}) y las infecciones nuevas al parto (NI) ${fmtPct(a.ni_parto[n-1])} (vs ${fmtPct(a.ni_parto[n-2])}).`);
+    }
+  }
+
+  if (bullets.length) {
+    html += '<h3>Resumen del periodo</h3><ul class="bullets">' + bullets.map(b=>`<li>${b}</li>`).join('') + '</ul>';
+  }
+  html += '<hr>';
+
+  // ---- Charts placeholders ----
+  let chartDefs = [];
+  if (k.rcs) {
+    html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los ultimos anios':''}.</p><canvas id="ch_rcs"></canvas></div>`;
+    chartDefs.push(()=>{
+      const series = [{label:'RCS', data:k.rcs, color:PALETTE.navy}];
+      if (k.rcs_5y) series.push({label:'Promedio historico', data:k.rcs_5y, color:PALETTE.grey, dashed:true});
+      lineChart('ch_rcs', mesesLbl, series);
+    });
+  }
+  if (k.pct_mastitis) {
+    html += `<div class="chart-block"><h3>Evolucion de la mastitis clinica</h3><p class="rp-intro">% de vacas con al menos un caso de mastitis clinica en el mes.</p><canvas id="ch_mc"></canvas></div>`;
+    chartDefs.push(()=>{
+      const series = [{label:'% Mastitis', data:k.pct_mastitis.map(v=>v!==null?v*100:null), color:PALETTE.navy}];
+      if (k.pct_mastitis_5y) series.push({label:'Promedio historico', data:k.pct_mastitis_5y.map(v=>v!==null?v*100:null), color:PALETTE.grey, dashed:true});
+      lineChart('ch_mc', mesesLbl, series);
+    });
+  }
+  if (k.prev_subclin || k.inc_subclin) {
+    html += `<div class="chart-block"><h3>Mastitis subclinica</h3><p class="rp-intro">Prevalencia: % de vacas con RCS alto en el mes. Incidencia: % de vacas nuevas infectadas respecto del mes anterior.</p><canvas id="ch_sub"></canvas></div>`;
+    chartDefs.push(()=>{
+      const series = [];
+      if (k.prev_subclin) series.push({label:'Prevalencia', data:k.prev_subclin.map(v=>v!==null?v*100:null), color:PALETTE.navy});
+      if (k.inc_subclin) series.push({label:'Incidencia', data:k.inc_subclin.map(v=>v!==null?v*100:null), color:PALETTE.blue});
+      lineChart('ch_sub', mesesLbl, series);
+    });
+  }
+  if (a.del_lact1 && a.del_lact2p) {
+    html += `<div class="chart-block"><h3>Mastitis en los primeros 30 dias de lactancia</h3><p class="rp-intro">% con mastitis clinica dentro de los 30 dias del parto, por ano.</p><canvas id="ch_del"></canvas></div>`;
+    chartDefs.push(()=>barChart('ch_del', a.anios.map(String), [
+      {label:'Lactancia 1', data:a.del_lact1.map(v=>v!==null?v*100:null), color:PALETTE.blue},
+      {label:'Lactancia 2+', data:a.del_lact2p.map(v=>v!==null?v*100:null), color:PALETTE.navy},
+    ]));
+  }
+  if (a.secado_lt200) {
+    html += `<div class="chart-block"><h3>Secado</h3><p class="rp-intro">% de vacas secadas con RCS &lt; 200 mil, por ano.</p><canvas id="ch_sec"></canvas></div>`;
+    chartDefs.push(()=>{
+      const n = a.secado_lt200.length;
+      const cols = a.secado_lt200.map((_,i)=> i===n-1 ? PALETTE.green : PALETTE.blue);
+      barChart('ch_sec', a.anios.map(String), [{label:'% secadas <200', data:a.secado_lt200.map(v=>v!==null?v*100:null), colors:cols}]);
+    });
+  }
+  if (a.ni_parto && a.cura_secado) {
+    html += `<div class="chart-block"><h3>Evolucion al parto siguiente</h3><p class="rp-intro">De las vacas secadas con RCS alto: % que se curo y % que llego al parto con infeccion nueva (NI).</p><canvas id="ch_nicura"></canvas></div>`;
+    chartDefs.push(()=>barChart('ch_nicura', a.anios.map(String), [
+      {label:'NI al parto', data:a.ni_parto.map(v=>v!==null?v*100:null), color:PALETTE.red},
+      {label:'Cura al secado', data:a.cura_secado.map(v=>v!==null?v*100:null), color:PALETTE.green},
+    ]));
+  }
+  if (a.vaq_parto_lt200) {
+    html += `<div class="chart-block"><h3>Vaquillonas al parto</h3><p class="rp-intro">% de vaquillonas que llegan al primer parto con RCS &lt; 200 mil.</p><canvas id="ch_vaq"></canvas></div>`;
+    chartDefs.push(()=>{
+      const n = a.vaq_parto_lt200.length;
+      const cols = a.vaq_parto_lt200.map((_,i)=> i===n-1 ? PALETTE.amber : PALETTE.blue);
+      barChart('ch_vaq', a.anios.map(String), [{label:'% vaquillonas <200', data:a.vaq_parto_lt200.map(v=>v!==null?v*100:null), colors:cols}]);
+    });
+  }
+
+  html += `<div class="rp-footer">Informe generado a partir de la base de datos de calidad de leche del establecimiento</div>`;
+  html += `</div>`;
+
+  document.getElementById('report').innerHTML = html;
+  chartDefs.forEach(fn=>fn());
+}
+
+const CREDS = {user: 'fgpuricelli', pass: '2922'};
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value.trim();
+  if(u === CREDS.user && p === CREDS.pass) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'block';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
