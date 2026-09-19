@@ -167,7 +167,7 @@ def parse_base(excel_data):
         if str(ws.cell(r,1).value or '').strip() == 'RP': header_row = r; break
     data_start = header_row + 1
 
-    target = {'Nro.Lact','Dias ACU','Le.UC','Re.UC','Est.Actual','Tambo','Ini.Lact','Prox.Secado'}
+    target = {'Nro.Lact','Dias ACU','Le.UC','Re.UC','Re.CA','Est.Actual','Tambo','Ini.Lact','Prox.Secado'}
     anchor_col = None
     for c in range(2, ws.max_column+1):
         v = ws.cell(header_row, c).value
@@ -210,6 +210,27 @@ def parse_base(excel_data):
     col_act = rcs_sorted[-1] if len(rcs_sorted) >= 1 else None
     col_ant = rcs_sorted[-2] if len(rcs_sorted) >= 2 else None
 
+    # Fallback para cuando Re.CA (control anterior, resumen final) no esta
+    # cargado: se infiere del bloque mensual "RCS (x1000 cel/ml)". Ese bloque a
+    # veces esta sincronizado con Re.UC (ultima columna = mismo mes/valor que
+    # Re.UC, entonces el mes anterior real es la PENULTIMA columna) y a veces
+    # esta desfasado un mes (entonces la ULTIMA columna ya es el mes anterior).
+    # Se detecta comparando una muestra.
+    re_col = found.get('Re.UC', 0)
+    n_match = 0; n_total = 0
+    if col_act and re_col:
+        for r in range(data_start, ws.max_row+1):
+            if ws.cell(r,1).value is None: continue
+            v_block = ws.cell(r, col_act).value
+            v_reuc = ws.cell(r, re_col).value
+            if v_block is None or v_reuc is None: continue
+            try:
+                if abs(float(v_block) - float(v_reuc)) < 0.01: n_match += 1
+                n_total += 1
+            except: pass
+    rcs_sincronizado = n_total > 0 and (n_match / n_total) > 0.8
+    col_fallback_ant = col_ant if rcs_sincronizado else col_act
+
     NL = chr(10)
     vacas = []
     for r in range(data_start, ws.max_row+1):
@@ -221,14 +242,16 @@ def parse_base(excel_data):
         dias = ws.cell(r, found.get('Dias ACU',0)).value if found.get('Dias ACU') else None
         le = ws.cell(r, found.get('Le.UC',0)).value if found.get('Le.UC') else None
         re = ws.cell(r, found.get('Re.UC',0)).value if found.get('Re.UC') else None
+        re_ca = ws.cell(r, found.get('Re.CA',0)).value if found.get('Re.CA') else None
         ini_lact = ws.cell(r, found.get('Ini.Lact',0)).value if found.get('Ini.Lact') else None
-        # rcs_act = Re.UC (resumen final), que es siempre el control mas reciente.
-        # El actualizador nuevo mantiene sincronizada la ultima columna del bloque
-        # mensual "RCS (x1000 cel/ml)" con Re.UC (mismo mes, mismo valor), por lo
-        # que el control ANTERIOR real es la PENULTIMA columna del bloque (col_ant).
+        # rcs_act = Re.UC (control mas reciente) y rcs_ant = Re.CA (control
+        # anterior), ambos ya calculados en el resumen final de la base. Si
+        # Re.CA no esta cargado (algunas bases no lo llenan), se usa el
+        # fallback inferido del bloque mensual (ver deteccion arriba).
         rcs_act = re
-        rcs_ant = ws.cell(r, col_ant).value if col_ant else None
-        if rcs_act is None: rcs_act = ws.cell(r, col_act).value if col_act else None
+        rcs_ant = re_ca if re_ca is not None else (ws.cell(r, col_fallback_ant).value if col_fallback_ant else None)
+        # No hay fallback si Re.UC esta vacio: el dato "actual" debe ser el
+        # control real de la base, no uno inferido del bloque mensual.
 
         # u3c = ultimo RCS de la lactancia ANTERIOR (antes del mes de ini_lact)
         # 1c  = primer RCS de la lactancia ACTUAL (desde el mes de ini_lact en adelante)
@@ -291,9 +314,10 @@ def parse_base(excel_data):
 
         is_seca = 'seca' in est.lower() or est.upper() == 'S'
 
-        # NI classification
+        # NI classification (Re.CA y Re.UC deben ser > 0, no solo no-nulos:
+        # un valor de 0 es un control invalido/sin dato, no un RCS real)
         ni = None
-        if rcs_ant_f is not None and rcs_act_f > 0:
+        if rcs_ant_f is not None and rcs_ant_f > 0 and rcs_act_f > 0:
             if rcs_ant_f < 200 and rcs_act_f > 200: ni='NI'
             elif rcs_ant_f > 200 and rcs_act_f < 200: ni='AC'
             elif rcs_ant_f > 200 and rcs_act_f > 200: ni='C'
@@ -319,8 +343,12 @@ def calc_resultado(vacas_grupo):
     rcs_pr=sum(v['re']*v['le'] for v in en_ordeno)/lt if lt>0 else 0
     n_s200=sum(1 for v in en_ordeno if v['rcs_act']>200)
     prev=n_s200/n if n>0 else 0
-    n_exp=sum(1 for v in en_ordeno if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
-    n_ni=sum(1 for v in en_ordeno if v['ni']=='NI')
+    # Expuestas y NI probables NO excluyen secas ni exigen le>0: son sobre la
+    # dinamica de infeccion (Re.CA vs Re.UC), no sobre el estado de ordeño
+    # actual. Solo exigen Re.UC>0 (control actual valido).
+    ni_pool = [v for v in vacas_grupo if v['rcs_act']>0]
+    n_exp=sum(1 for v in ni_pool if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
+    n_ni=sum(1 for v in ni_pool if v['ni']=='NI')
     tni=n_ni/n_exp if n_exp>0 else 0
     pni=n_ni/n_s200 if n_s200>0 else 0
     vqs=[v for v in en_ordeno if v['is_vq']]; nvq=len(vqs)
@@ -331,8 +359,9 @@ def calc_resultado(vacas_grupo):
     n_vqs200=sum(1 for v in vqs if v['rcs_act']>200)
     n_vqrcs=sum(1 for v in vqs if v['rcs_act']>0)
     prev_vq=n_vqs200/n_vqrcs if n_vqrcs>0 else 0
-    n_vqexp=sum(1 for v in vqs if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
-    n_vqni=sum(1 for v in vqs if v['ni']=='NI')
+    vq_ni_pool = [v for v in ni_pool if v['is_vq']]
+    n_vqexp=sum(1 for v in vq_ni_pool if v['rcs_ant'] is not None and 0<v['rcs_ant']<200)
+    n_vqni=sum(1 for v in vq_ni_pool if v['ni']=='NI')
     tni_vq=n_vqni/n_vqexp if n_vqexp>0 else 0
     pct_vq=nvq/n if n>0 else 0
     return {'n':n,'le_pr':round(le_pr,1),'del_pr':round(del_pr,0),'rcs_pr':round(rcs_pr,0),
