@@ -88,10 +88,11 @@
   .btn-print:hover{background:rgba(56,217,169,.1)}
 
   @media print{
-    body>*:not(#report-wrap){display:none !important}
     body{background:#fff;padding:0}
     body::before{display:none}
-    #report-wrap{display:block !important;margin:0}
+    .header, .py-status, #card1, #card2 { display:none !important; }
+    .container{max-width:100%}
+    #report-wrap{margin:0}
     .btn-print{display:none !important}
     #report{border-radius:0}
     .chart-block{margin-bottom:14px}
