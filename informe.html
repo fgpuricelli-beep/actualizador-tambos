@@ -565,9 +565,11 @@ function buildReport(d) {
     });
   }
   if (k.pct_primeros_casos) {
-    html += `<div class="chart-block"><h3>Casos nuevos vs. recurrentes</h3><p class="rp-intro">Del total de casos de mastitis clinica del mes, que porcentaje corresponde a un primer episodio en la lactancia (caso nuevo) en vez de una recurrencia.</p><canvas id="ch_pc"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Casos nuevos vs. recurrentes</h3><p class="rp-intro">Linea celeste: % de vacas del rodeo con mastitis clinica en el mes (sobre el total de vacas). Linea naranja: de esos casos, que porcentaje es un primer episodio en la lactancia (caso nuevo) en vez de una recurrencia (sobre el total de casos). Son dos bases distintas, comparar solo la tendencia de cada una.</p><canvas id="ch_pc"></canvas></div>`;
     chartDefs.push(()=>{
-      lineChart('ch_pc', mesesLbl, [{label:'% casos nuevos', data:k.pct_primeros_casos.map(v=>v!==null?v*100:null), color:PALETTE.blue}]);
+      const series = [{label:'% casos nuevos (sobre casos)', data:k.pct_primeros_casos.map(v=>v!==null?v*100:null), color:PALETTE.amber}];
+      if (k.pct_mastitis) series.unshift({label:'% mastitis total (sobre rodeo)', data:k.pct_mastitis.map(v=>v!==null?v*100:null), color:PALETTE.blue});
+      lineChart('ch_pc', mesesLbl, series);
     });
   }
   if (k.prev_subclin || k.inc_subclin) {
