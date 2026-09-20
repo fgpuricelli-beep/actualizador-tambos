@@ -582,14 +582,14 @@ function buildReport(d) {
     });
   }
   if (a.del_lact1 && a.del_lact2p) {
-    html += `<div class="chart-block"><h3>Mastitis en los primeros 30 dias de lactancia</h3><p class="rp-intro">% con mastitis clinica dentro de los 30 dias del parto, por ano.</p><canvas id="ch_del"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Mastitis en los primeros 30 dias de lactancia</h3><p class="rp-intro">% con mastitis clinica dentro de los 30 dias del parto, por año.</p><canvas id="ch_del"></canvas></div>`;
     chartDefs.push(()=>barChart('ch_del', a.anios.map(String), [
       {label:'Lactancia 1', data:a.del_lact1.map(v=>v!==null?v*100:null), color:PALETTE.blue},
       {label:'Lactancia 2+', data:a.del_lact2p.map(v=>v!==null?v*100:null), color:PALETTE.navy},
     ]));
   }
   if (a.secado_lt200) {
-    html += `<div class="chart-block"><h3>Secado</h3><p class="rp-intro">% de vacas secadas con RCS &lt; 200 mil, por ano.</p><canvas id="ch_sec"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Secado</h3><p class="rp-intro">% de vacas secadas con RCS &lt; 200 mil, por año.</p><canvas id="ch_sec"></canvas></div>`;
     chartDefs.push(()=>{
       const n = a.secado_lt200.length;
       const cols = a.secado_lt200.map((_,i)=> i===n-1 ? PALETTE.green : PALETTE.blue);
