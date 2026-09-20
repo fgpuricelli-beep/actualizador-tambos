@@ -259,8 +259,9 @@ def parse_informe(excel_data, sheet_name=None):
     kpis['ufc'] = read_row(lambda l: l.startswith('ufc'), header_row+1, RMAX)
     kpis['rcs'] = read_row(lambda l: l.startswith('rcs') and 'promedio' not in l, header_row+1, RMAX)
     kpis['rcs_5y'] = read_row(lambda l: l.startswith('rcs') and 'promedio' in l, header_row+1, RMAX)
-    kpis['pct_mastitis'] = read_row(lambda l: 'mastitis' in l and 'promedio' not in l and 'subclin' not in l and 'del' not in l, header_row+1, RMAX)
+    kpis['pct_mastitis'] = read_row(lambda l: 'mastitis' in l and 'promedio' not in l and 'subclin' not in l and 'del' not in l and 'caso' not in l, header_row+1, RMAX)
     kpis['pct_mastitis_5y'] = read_row(lambda l: 'mastitis' in l and 'promedio' in l and 'subclin' not in l, header_row+1, RMAX)
+    kpis['pct_primeros_casos'] = read_row(lambda l: 'mastitis' in l and 'caso' in l and ('1ro' in l or 'primer' in l or 'nuevo' in l), header_row+1, RMAX)
     kpis['prev_subclin'] = read_row(lambda l: 'preval' in l, header_row+1, RMAX)
     kpis['inc_subclin'] = read_row(lambda l: 'inciden' in l and 'subclin' in l, header_row+1, RMAX)
     result['kpis'] = kpis
@@ -455,19 +456,27 @@ function buildReport(d) {
   const mesActualFull = mesesFull.length ? mesesFull[refIdx] : '';
 
   let html = '';
-  html += `<div class="rp-header"><h2>INFORME MENSUAL DE CALIDAD DE LECHE</h2><div class="rp-sub">Establecimiento ${d.establecimiento} &nbsp;&middot;&nbsp; ${mesActualFull}</div></div>`;
+  html += `<div class="rp-header"><h2>INFORME MENSUAL DE CALIDAD DE LECHE</h2><div class="rp-sub">Establecimiento ${d.establecimiento} &nbsp;&middot;&nbsp; ${mesActualFull}</div><div class="rp-sub" style="margin-top:2px">Federico Puricelli, Vet.</div></div>`;
   html += `<div class="rp-body">`;
 
   // ---- KPIs ----
   let kpiHtml = '<div class="kpi-row">';
   const rcsL = lastValid(k.rcs), rcs5L = k.rcs_5y ? k.rcs_5y[rcsL.idx] : null;
+  const rcsPrevVal = (k.rcs && rcsL.idx > 0) ? k.rcs[rcsL.idx - 1] : null;
   if (rcsL.val !== null) {
-    let sub = 'Ultimo dato disponible', cls = 'kpi-blue';
-    if (rcs5L !== null && rcs5L !== undefined) {
-      const delta = (rcsL.val - rcs5L) / rcs5L * 100;
-      sub = (delta<0?'-':'+') + Math.abs(delta).toFixed(0) + '% vs. promedio 5 anios';
-      cls = delta<0 ? 'kpi-green' : (delta<10 ? 'kpi-amber' : 'kpi-red');
+    let lines = [];
+    let clsDelta = null;
+    if (rcsPrevVal !== null && rcsPrevVal !== undefined) {
+      const dPrev = (rcsL.val - rcsPrevVal) / rcsPrevVal * 100;
+      lines.push((dPrev<0?'-':'+') + Math.abs(dPrev).toFixed(0) + '% vs. mes anterior');
     }
+    if (rcs5L !== null && rcs5L !== undefined) {
+      const dHist = (rcsL.val - rcs5L) / rcs5L * 100;
+      lines.push((dHist<0?'-':'+') + Math.abs(dHist).toFixed(0) + '% vs. promedio 5 años (histórico)');
+      clsDelta = dHist;
+    }
+    const sub = lines.length ? lines.join('<br>') : 'Ultimo dato disponible';
+    const cls = clsDelta===null ? 'kpi-blue' : (clsDelta<0 ? 'kpi-green' : (clsDelta<10 ? 'kpi-amber' : 'kpi-red'));
     kpiHtml += kpiCard('RCS (x1000 cél/ml)', fmtNum(rcsL.val), sub, cls);
   }
   const ufcL = lastValid(k.ufc);
@@ -509,6 +518,12 @@ function buildReport(d) {
     if (pend > 0) txt += ` ${pend===1?'El ultimo mes':'Los ultimos '+pend+' meses'} todavia no ${pend===1?'tiene':'tienen'} el dato cerrado.`;
     bullets.push(txt);
   }
+  if (k.pct_primeros_casos) {
+    const pcL = lastValid(k.pct_primeros_casos);
+    if (pcL.val !== null) {
+      bullets.push(`Del total de casos de mastitis clinica de ${mesesLbl[pcL.idx]}, el ${fmtPct(pcL.val)} fueron casos nuevos (primera vez en la lactancia); el resto son recurrencias sobre vacas que ya habian tenido mastitis antes.`);
+    }
+  }
   if (prevL.val !== null && k.inc_subclin) {
     const incL = lastValid(k.inc_subclin);
     bullets.push(`La prevalencia y la incidencia de mastitis subclinica en ${mesesLbl[prevL.idx]} fueron ${fmtPct(prevL.val)} y ${incL.val!==null?fmtPct(incL.val):'s/d'} respectivamente.`);
@@ -534,7 +549,7 @@ function buildReport(d) {
   // ---- Charts placeholders ----
   let chartDefs = [];
   if (k.rcs) {
-    html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los ultimos anios':''}.</p><canvas id="ch_rcs"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los últimos años':''}.</p><canvas id="ch_rcs"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'RCS', data:k.rcs, color:PALETTE.navy}];
       if (k.rcs_5y) series.push({label:'Promedio historico', data:k.rcs_5y, color:PALETTE.grey, dashed:true});
@@ -549,8 +564,14 @@ function buildReport(d) {
       lineChart('ch_mc', mesesLbl, series);
     });
   }
+  if (k.pct_primeros_casos) {
+    html += `<div class="chart-block"><h3>Casos nuevos vs. recurrentes</h3><p class="rp-intro">Del total de casos de mastitis clinica del mes, que porcentaje corresponde a un primer episodio en la lactancia (caso nuevo) en vez de una recurrencia.</p><canvas id="ch_pc"></canvas></div>`;
+    chartDefs.push(()=>{
+      lineChart('ch_pc', mesesLbl, [{label:'% casos nuevos', data:k.pct_primeros_casos.map(v=>v!==null?v*100:null), color:PALETTE.blue}]);
+    });
+  }
   if (k.prev_subclin || k.inc_subclin) {
-    html += `<div class="chart-block"><h3>Mastitis subclinica</h3><p class="rp-intro">Prevalencia: % de vacas con RCS alto en el mes. Incidencia: % de vacas nuevas infectadas respecto del mes anterior.</p><canvas id="ch_sub"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Mastitis subclinica</h3><p class="rp-intro"><strong>Prevalencia:</strong> qué porcentaje del rodeo tiene RCS alto (&gt;200 mil) en ese mes, es decir, cuántas vacas están afectadas en total. <strong>Incidencia:</strong> qué porcentaje de las vacas que estaban sanas el mes anterior pasaron a tener RCS alto este mes, es decir, cuántas se infectaron de nuevo.</p><canvas id="ch_sub"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [];
       if (k.prev_subclin) series.push({label:'Prevalencia', data:k.prev_subclin.map(v=>v!==null?v*100:null), color:PALETTE.navy});
