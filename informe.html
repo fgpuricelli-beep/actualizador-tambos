@@ -391,6 +391,9 @@ function lastValid(arr) {
   for (let i=arr.length-1;i>=0;i--) if (arr[i]!==null && arr[i]!==undefined) return {idx:i, val:arr[i]};
   return {idx:-1, val:null};
 }
+function hasData(arr) {
+  return Array.isArray(arr) && arr.some(v => v !== null && v !== undefined);
+}
 
 async function runInforme() {
   const btn = document.getElementById('btn-run');
@@ -518,7 +521,7 @@ function buildReport(d) {
     if (pend > 0) txt += ` ${pend===1?'El ultimo mes':'Los ultimos '+pend+' meses'} todavia no ${pend===1?'tiene':'tienen'} el dato cerrado.`;
     bullets.push(txt);
   }
-  if (k.pct_primeros_casos) {
+  if (hasData(k.pct_primeros_casos)) {
     const pcL = lastValid(k.pct_primeros_casos);
     if (pcL.val !== null) {
       bullets.push(`Del total de casos de mastitis clinica de ${mesesLbl[pcL.idx]}, el ${fmtPct(pcL.val)} fueron casos nuevos (primera vez en la lactancia); el resto son recurrencias sobre vacas que ya habian tenido mastitis antes.`);
@@ -528,13 +531,13 @@ function buildReport(d) {
     const incL = lastValid(k.inc_subclin);
     bullets.push(`La prevalencia y la incidencia de mastitis subclinica en ${mesesLbl[prevL.idx]} fueron ${fmtPct(prevL.val)} y ${incL.val!==null?fmtPct(incL.val):'s/d'} respectivamente.`);
   }
-  if (a.del_lact1 && a.del_lact2p && a.anios) {
+  if (hasData(a.del_lact1) && hasData(a.del_lact2p) && a.anios) {
     const n = a.anios.length;
     if (n>=2 && a.del_lact1[n-1]!==null && a.del_lact1[n-2]!==null) {
       bullets.push(`La mastitis en los primeros 30 dias de lactancia en ${a.anios[n-1]} fue de ${fmtPct(a.del_lact1[n-1])} en vaquillonas (vs ${fmtPct(a.del_lact1[n-2])} en ${a.anios[n-2]}) y ${fmtPct(a.del_lact2p[n-1])} en vacas de 2+ partos (vs ${fmtPct(a.del_lact2p[n-2])}).`);
     }
   }
-  if (a.ni_parto && a.cura_secado && a.anios) {
+  if (hasData(a.ni_parto) && hasData(a.cura_secado) && a.anios) {
     const n = a.anios.length;
     if (n>=2 && a.ni_parto[n-1]!==null && a.cura_secado[n-1]!==null) {
       bullets.push(`En el secado: la cura al secado en ${a.anios[n-1]} fue ${fmtPct(a.cura_secado[n-1])} (vs ${fmtPct(a.cura_secado[n-2])} en ${a.anios[n-2]}) y las infecciones nuevas al parto (NI) ${fmtPct(a.ni_parto[n-1])} (vs ${fmtPct(a.ni_parto[n-2])}).`);
@@ -548,7 +551,7 @@ function buildReport(d) {
 
   // ---- Charts placeholders ----
   let chartDefs = [];
-  if (k.rcs) {
+  if (hasData(k.rcs)) {
     html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los últimos años':''}.</p><canvas id="ch_rcs"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'RCS', data:k.rcs, color:PALETTE.navy}];
@@ -556,7 +559,7 @@ function buildReport(d) {
       lineChart('ch_rcs', mesesLbl, series);
     });
   }
-  if (k.pct_mastitis) {
+  if (hasData(k.pct_mastitis)) {
     html += `<div class="chart-block"><h3>Evolucion de la mastitis clinica</h3><p class="rp-intro">% de vacas con al menos un caso de mastitis clinica en el mes.</p><canvas id="ch_mc"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'% Mastitis', data:k.pct_mastitis.map(v=>v!==null?v*100:null), color:PALETTE.navy}];
@@ -564,7 +567,7 @@ function buildReport(d) {
       lineChart('ch_mc', mesesLbl, series);
     });
   }
-  if (k.pct_primeros_casos) {
+  if (hasData(k.pct_primeros_casos)) {
     html += `<div class="chart-block"><h3>Casos nuevos vs. recurrentes</h3><p class="rp-intro">Linea celeste: % de vacas del rodeo con mastitis clinica en el mes (sobre el total de vacas). Linea naranja: de esos casos, que porcentaje es un primer episodio en la lactancia (caso nuevo) en vez de una recurrencia (sobre el total de casos). Son dos bases distintas, comparar solo la tendencia de cada una.</p><canvas id="ch_pc"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'% casos nuevos (sobre casos)', data:k.pct_primeros_casos.map(v=>v!==null?v*100:null), color:PALETTE.amber}];
@@ -572,7 +575,7 @@ function buildReport(d) {
       lineChart('ch_pc', mesesLbl, series);
     });
   }
-  if (k.prev_subclin || k.inc_subclin) {
+  if (hasData(k.prev_subclin) || hasData(k.inc_subclin)) {
     html += `<div class="chart-block"><h3>Mastitis subclinica</h3><p class="rp-intro"><strong>Prevalencia:</strong> qué porcentaje del rodeo tiene RCS alto (&gt;200 mil) en ese mes, es decir, cuántas vacas están afectadas en total. <strong>Incidencia:</strong> qué porcentaje de las vacas que estaban sanas el mes anterior pasaron a tener RCS alto este mes, es decir, cuántas se infectaron de nuevo.</p><canvas id="ch_sub"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [];
@@ -581,14 +584,14 @@ function buildReport(d) {
       lineChart('ch_sub', mesesLbl, series);
     });
   }
-  if (a.del_lact1 && a.del_lact2p) {
+  if (hasData(a.del_lact1) && hasData(a.del_lact2p)) {
     html += `<div class="chart-block"><h3>Mastitis en los primeros 30 dias de lactancia</h3><p class="rp-intro">% con mastitis clinica dentro de los 30 dias del parto, por año.</p><canvas id="ch_del"></canvas></div>`;
     chartDefs.push(()=>barChart('ch_del', a.anios.map(String), [
       {label:'Lactancia 1', data:a.del_lact1.map(v=>v!==null?v*100:null), color:PALETTE.blue},
       {label:'Lactancia 2+', data:a.del_lact2p.map(v=>v!==null?v*100:null), color:PALETTE.navy},
     ]));
   }
-  if (a.secado_lt200) {
+  if (hasData(a.secado_lt200)) {
     html += `<div class="chart-block"><h3>Secado</h3><p class="rp-intro">% de vacas secadas con RCS &lt; 200 mil, por año.</p><canvas id="ch_sec"></canvas></div>`;
     chartDefs.push(()=>{
       const n = a.secado_lt200.length;
@@ -596,14 +599,14 @@ function buildReport(d) {
       barChart('ch_sec', a.anios.map(String), [{label:'% secadas <200', data:a.secado_lt200.map(v=>v!==null?v*100:null), colors:cols}]);
     });
   }
-  if (a.ni_parto && a.cura_secado) {
+  if (hasData(a.ni_parto) && hasData(a.cura_secado)) {
     html += `<div class="chart-block"><h3>Evolucion al parto siguiente</h3><p class="rp-intro">De las vacas secadas con RCS alto: % que se curo y % que llego al parto con infeccion nueva (NI).</p><canvas id="ch_nicura"></canvas></div>`;
     chartDefs.push(()=>barChart('ch_nicura', a.anios.map(String), [
       {label:'NI al parto', data:a.ni_parto.map(v=>v!==null?v*100:null), color:PALETTE.red},
       {label:'Cura al secado', data:a.cura_secado.map(v=>v!==null?v*100:null), color:PALETTE.green},
     ]));
   }
-  if (a.vaq_parto_lt200) {
+  if (hasData(a.vaq_parto_lt200)) {
     html += `<div class="chart-block"><h3>Vaquillonas al parto</h3><p class="rp-intro">% de vaquillonas que llegan al primer parto con RCS &lt; 200 mil.</p><canvas id="ch_vaq"></canvas></div>`;
     chartDefs.push(()=>{
       const n = a.vaq_parto_lt200.length;
