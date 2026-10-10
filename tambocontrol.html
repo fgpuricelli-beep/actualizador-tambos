@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tambo Control</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0f1117;--surface:#181c27;--surface2:#1e2334;--border:#2a3050;--accent:#4f8ef7;--accent2:#38d9a9;--danger:#ff6b6b;--text:#e8eaf2;--text2:#8892b0}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;padding:40px 20px}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.25;pointer-events:none}
+  .container{max-width:760px;margin:0 auto;position:relative;z-index:1}
+  .brand{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--accent2);margin-bottom:10px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px}
+  .sub{color:var(--text2);font-size:13px;margin-bottom:30px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px}
+  a.card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;text-decoration:none;color:inherit;transition:.15s}
+  a.card:hover{border-color:var(--accent2);transform:translateY(-2px)}
+  .ic{font-size:28px;margin-bottom:10px}
+  .t{font-size:16px;font-weight:600;margin-bottom:6px}
+  .d{font-size:12.5px;color:var(--text2);line-height:1.5}
+  .n{font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:.1em;margin-bottom:8px}
+  .foot{margin-top:28px;text-align:center}
+  .foot button{background:none;border:none;color:var(--text2);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;text-decoration:underline}
+  #app{display:none}
+  #login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+  #login-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+  .login-title{font-size:24px;font-weight:700;margin-bottom:6px;letter-spacing:-0.5px}
+  .login-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+  .login-field{margin-bottom:16px}
+  .login-field label{display:block;font-size:12px;color:var(--text2);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .login-field input{width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none}
+  .login-field input:focus{border-color:var(--accent)}
+  .login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
+  .login-btn:hover{background:#6a9ff9}
+  .login-error{color:var(--danger);font-size:13px;margin-top:10px;text-align:center;display:none}
+</style>
+</head>
+<body>
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Tambo Control</div>
+    <div class="login-sub">Gestión de calidad de leche — acceso restringido</div>
+    <div class="login-field"><label>USUARIO</label><input type="text" id="login-user" placeholder="Usuario" autocomplete="username"></div>
+    <div class="login-field"><label>CONTRASEÑA</label><input type="password" id="login-pass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()"></div>
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+  </div>
+</div>
+
+<div id="app" class="container">
+  <div class="brand">TAMBO CONTROL</div>
+  <h1>Calidad de leche y mastitis</h1>
+  <div class="sub">Federico Puricelli, Vet.</div>
+  <div class="grid">
+    <a class="card" href="index.html"><div class="n">PASO 1</div><div class="ic">🔄</div><div class="t">Actualizador</div><div class="d">Actualiza la base de cada tambo con el nuevo control lechero y los eventos.</div></a>
+    <a class="card" href="analisis.html"><div class="n">PASO 2</div><div class="ic">📊</div><div class="t">Análisis mensual</div><div class="d">Secado, MC vs DEL, expuestas / NI y resto del análisis del mes.</div></a>
+    <a class="card" href="ranking.html"><div class="n">VACAS</div><div class="ic">🏆</div><div class="t">Ranking</div><div class="d">Ranking de vacas por riesgo de mastitis y pérdidas estimadas.</div></a>
+    <a class="card" href="informe.html"><div class="n">PRODUCTOR</div><div class="ic">📄</div><div class="t">Informe mensual</div><div class="d">Informe imprimible / PDF para el productor, a partir de la hoja Informe.</div></a>
+  </div>
+  <div class="foot"><button onclick="doLogout()">Cerrar sesión</button></div>
+</div>
+
+<script>
+const CREDS = {user: 'fgpuricelli', pass: '2922'};
+function showApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+}
+function doLogin(){
+  const u=document.getElementById('login-user').value.trim();
+  const p=document.getElementById('login-pass').value.trim();
+  if(u===CREDS.user && p===CREDS.pass){
+    try{sessionStorage.setItem('panel_ok','1');}catch(e){}
+    showApp();
+  } else {
+    document.getElementById('login-error').style.display='block';
+  }
+}
+function doLogout(){
+  try{sessionStorage.removeItem('panel_ok');}catch(e){}
+  location.reload();
+}
+try{ if(sessionStorage.getItem('panel_ok')==='1') showApp(); }catch(e){}
+</script>
+</body>
+</html>
