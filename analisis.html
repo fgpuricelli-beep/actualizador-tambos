@@ -236,6 +236,27 @@ def parse_base(excel_data):
     rcs_sincronizado = n_total > 0 and (n_match / n_total) > 0.8
     col_fallback_ant = col_ant if rcs_sincronizado else col_act
 
+    # Fecha tipica (dia del mes) del control lechero mas reciente: para cada
+    # vaca en ordeno con DEL chico, fecha de parto + Dias ACU = fecha de su
+    # ultimo control. Se usa la mediana. Sirve para saber si el control de un
+    # mes cae ANTES o DESPUES del parto de una vaca (las columnas de RCS solo
+    # tienen el mes, y una vaca que pare a fin de mes ya tiene cargado el
+    # control de ese mes, pero fue previo al parto).
+    ctrl_days = []
+    c_ini = found.get('Ini.Lact'); c_dias = found.get('Dias ACU')
+    if c_ini and c_dias:
+        for r in range(data_start, ws.max_row+1):
+            a = ws.cell(r, c_ini).value; b = ws.cell(r, c_dias).value
+            if isinstance(a, datetime.datetime):
+                try: bf = float(b)
+                except: continue
+                if 0 < bf <= 60:
+                    ctrl_days.append((a.date() + datetime.timedelta(days=int(bf))).day)
+    ctrl_day = 15
+    if ctrl_days:
+        ctrl_days.sort(); ctrl_day = ctrl_days[len(ctrl_days)//2]
+    ctrl_day = min(ctrl_day, 28)
+
     NL = chr(10)
     vacas = []
     for r in range(data_start, ws.max_row+1):
@@ -269,11 +290,13 @@ def parse_base(excel_data):
         first_rcs_date = None
         if ini_lact:
             ini_date_s = ini_lact.date() if isinstance(ini_lact, datetime.datetime) else ini_lact
-            ini_ym = (ini_date_s.year, ini_date_s.month)
-            # Ultimo RCS de un mes ANTERIOR al mes de parto = u3c
+            # u3c = ultimo RCS con control ANTERIOR al parto; 1c = primer RCS con
+            # control POSTERIOR al parto (fecha de control estimada = dia tipico
+            # del control en cada mes de la columna).
             for c in reversed(rcs_sorted):
                 d = rcs_col_dates[c]
-                if (d.year, d.month) < ini_ym:
+                cd = datetime.date(d.year, d.month, ctrl_day)
+                if cd < ini_date_s:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
                         try:
@@ -282,10 +305,10 @@ def parse_base(excel_data):
                                 u3c = v2f
                                 break
                         except: pass
-            # Primer RCS desde el mes de parto en adelante = 1c
             for c in rcs_sorted:
                 d = rcs_col_dates[c]
-                if (d.year, d.month) >= ini_ym:
+                cd = datetime.date(d.year, d.month, ctrl_day)
+                if cd >= ini_date_s:
                     v2 = ws.cell(r, c).value
                     if v2 is not None:
                         try:
@@ -578,15 +601,13 @@ def generar_secado_sheet(wb_out, vacas, tambos_list, mes_datos_rcs):
     # con 1er control en ese mes porque el bloque RCS todavia no llega ahi)
     mes_m, mes_y = mes_datos_rcs.month, mes_datos_rcs.year
 
-    # Vacas cuyo PRIMER control lechero post-parto (1c) cae en el mes analizado.
-    # No se usa DEL/fecha de parto: eso duplicaba vacas que ya tenian su 2do
-    # control dentro de la ventana de 35 dias, cuando esa vaca ya habia sido
-    # evaluada el mes anterior (con su 1er control). Cada vaca entra una sola
-    # vez, en el mes de su primer control real, sin importar cuando parió.
+    # Criterio: vacas con DEL entre 0 y 35 (Dias ACU) cuyo PRIMER control
+    # lechero de la lactancia es el del mes analizado. Una vaca con mas de 35
+    # dias, o cuyo primer control fue en un mes anterior, ya fue evaluada antes.
     def parida_en_mes(v):
-        d = v.get('first_rcs_date')
-        if d is None: return False
-        return d.year == mes_y and d.month == mes_m
+        d = v.get('dias'); fd = v.get('first_rcs_date')
+        if d is None or fd is None: return False
+        return 0 < d <= 35 and fd.year == mes_y and fd.month == mes_m
 
     rangos_rcs = [(0,200),(201,300),(301,500),(501,99999)]
     rangos_labels = ['0-200','201-300','301-500','>500']
