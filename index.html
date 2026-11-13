@@ -159,6 +159,7 @@
     <div class="step" id="step4">
       <div class="step-header"><div class="step-num" id="num4">4</div>
         <div><div class="step-title">Actualizar base</div><div class="step-desc">Procesá y descargá la base actualizada</div></div></div>
+      <input type="text" id="tambo-nombre" placeholder="Nombre del tambo (opcional): La Ponderosa  /  varios: 0142-01=Nombre1; 0142-02=Nombre2" style="width:100%;padding:12px 14px;margin:0 0 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none">
       <button class="btn-run" id="btn-run" disabled onclick="runUpdate()">
         <span id="btn-text">Actualizar base de datos</span>
       </button>
@@ -188,6 +189,8 @@ let pyReady = false;
 let resultBytes = null;
 let files = { excel: null, csv: null, mc: null };
 let mcSkipped = false;
+
+try { const _tn = localStorage.getItem('tambo_nombre'); if(_tn) document.getElementById('tambo-nombre').value = _tn; } catch(e) {}
 
 // Load Pyodide + openpyxl
 (async function() {
@@ -273,6 +276,9 @@ async function runUpdate() {
     pyodide.globals.set('csv_bytes', csvBytes);
     pyodide.globals.set('mc_bytes', mcBytes);
     pyodide.globals.set('csv_filename', files.csv.name);
+    const tn = (document.getElementById('tambo-nombre').value || '').trim();
+    pyodide.globals.set('tambo_names_str', tn);
+    try { localStorage.setItem('tambo_nombre', tn); } catch(e) {}
 
     const resultJson = await pyodide.runPythonAsync(`
 import json
@@ -506,6 +512,7 @@ def normalize_rp(val):
 
 
 
+
 # ---- Hojas "vc problema" y "Muestras" (agregadas por el actualizador) ----
 # Codigo ASCII puro: se embebe dentro de un template literal de JS.
 import datetime
@@ -550,7 +557,7 @@ def _vc_num(v):
         return None
     return f
 
-def build_vc_sheets(wb, ws, hr, tambo_col=None):
+def build_vc_sheets(wb, ws, hr, tambo_col=None, names=None):
     """Agrega por tambo las hojas 'vc problema' y 'Muestras'. Devuelve lista de nombres creados."""
     runs = _vc_runs(ws, hr)
     if len(runs) < 3:
@@ -592,14 +599,16 @@ def build_vc_sheets(wb, ws, hr, tambo_col=None):
 
     created = []
     multi = len(groups) > 1
+    names = names or {}
     for tambo, grows in sorted(groups.items()):
+        disp = names.get(tambo) or names.get('*') or tambo
         suf = (' ' + tambo) if multi else ''
         n1 = ('vc problema' + suf)[:31]
         n2 = ('Muestras' + suf)[:31]
         for nm in (n1, n2):
             if nm in wb.sheetnames: del wb[nm]
-        _vc_problema(wb, ws, hr, grows, tambo, n1, cur_ym, mc_map, rev_map, rcs_map, txt, summ)
-        _vc_muestras(wb, n1, n2, tambo, cur_ym, len(grows))
+        _vc_problema(wb, ws, hr, grows, disp, n1, cur_ym, mc_map, rev_map, rcs_map, txt, summ)
+        _vc_muestras(wb, n1, n2, disp, cur_ym, len(grows))
         created.extend([n1, n2])
     return created
 
@@ -1158,13 +1167,23 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
 
     vc_names=[]
     try:
-        vc_names=build_vc_sheets(wb, ws, header_row)
+        _ns = str(globals().get('tambo_names_str', '') or '').strip()
+        _names = {}
+        if _ns:
+            if '=' in _ns:
+                for _p in _ns.replace(',', ';').split(';'):
+                    if '=' in _p:
+                        _k, _v = _p.split('=', 1)
+                        if _k.strip() and _v.strip(): _names[_k.strip()] = _v.strip()
+            else:
+                _names['*'] = _ns
+        vc_names=build_vc_sheets(wb, ws, header_row, None, _names)
     except Exception as e:
         vc_names=['ERROR vc: '+str(e)]
 
     try:
-        for nm in vc_names:
-            if nm in wb.sheetnames: font_all(wb[nm])
+        for _ws in wb.worksheets:
+            font_all(_ws)
     except Exception:
         pass
 
