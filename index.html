@@ -504,6 +504,7 @@ def normalize_rp(val):
     return s.upper()
 
 
+
 # ---- Hojas "vc problema" y "Muestras" (agregadas por el actualizador) ----
 # Codigo ASCII puro: se embebe dentro de un template literal de JS.
 import datetime
@@ -567,7 +568,7 @@ def build_vc_sheets(wb, ws, hr, tambo_col=None):
     if tambo_col is None: tambo_col = summ.get('Tambo')
 
     # mes del control actual = ultima columna del bloque RCS
-    cur_ym = _vc_month(ws.cell(hr, rcs_run[1]).value)
+    cur_ym = max(_vc_month(ws.cell(hr, rcs_run[1]).value), _vc_month(ws.cell(hr, rev_run[1]).value), _vc_month(ws.cell(hr, mc_run[1]).value))
 
     def colmap(run):
         d = {}
@@ -705,10 +706,12 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
         # RCS (6 meses)
         for ym in rcs_months:
             sc = rcs_map.get(ym)
-            if not sc: continue
-            val = ws.cell(r, sc).value
             if ym == rcs_months[-1] and summ.get('Re.UC'):
                 val = ws.cell(r, summ['Re.UC']).value
+            elif sc:
+                val = ws.cell(r, sc).value
+            else:
+                continue
             if val is not None:
                 f = _vc_num(val)
                 v[L('rcs', ym) + str(t)] = f if f is not None else val
