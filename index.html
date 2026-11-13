@@ -505,6 +505,7 @@ def normalize_rp(val):
 
 
 
+
 # ---- Hojas "vc problema" y "Muestras" (agregadas por el actualizador) ----
 # Codigo ASCII puro: se embebe dentro de un template literal de JS.
 import datetime
@@ -614,7 +615,7 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
     # --- definicion de columnas ---
     cols = []   # (clave, encabezado, ancho)
     cols.append(('rp', 'RP', 7))
-    cols.append(('ini', 'Ini.Lact', 10))
+    cols.append(('ini', 'Ini.Lact', 12))
     for ym in mc_months: cols.append(('mc', ym, 7.5))
     for ym in rev_months: cols.append(('rev', ym, 9))
     for k in ('Observaciones', 'AU', 'PP', 'Ac'):
@@ -624,7 +625,7 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
     cols.append(('mclact', 'MC lact.', 7))
     cols.append(('motivo', 'Sugerencia', 12))
     for k in ('Nro.Lact', 'Dias ACU', 'Le.UC', 'Le.CA', 'Prox.Secado', 'Estado', 'Est.Actual', 'Tambo'):
-        cols.append(('sum', k, 9))
+        cols.append(('sum', k, 12 if k == 'Prox.Secado' else 9))
     cols.append(('dif', 'dif prod', 7))
     cols.append(('ord', 'n muestreo', 8))
     cols.append(('e1', 'ctrl ant.', 6)); cols.append(('e2', 'ctrl ult.', 6)); cols.append(('cod', 'cod', 6))
@@ -680,7 +681,7 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
         ini = ws.cell(r, 2).value
         v[cRp + str(t)] = rp
         if _vc_is_date(ini):
-            v[cIni + str(t)] = ini; v[cIni + str(t)].number_format = 'DD/MM/YY'
+            v[cIni + str(t)] = ini; v[cIni + str(t)].number_format = 'DD/MM/YYYY'
         ini_d = (ini.date() if isinstance(ini, datetime.datetime) else ini) if _vc_is_date(ini) else None
         # MC (5 meses) + comentarios
         for ym in mc_months:
@@ -689,7 +690,7 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
             src = ws.cell(r, sc); dst = v[L('mc', ym) + str(t)]
             if src.value is not None:
                 dst.value = src.value
-                if _vc_is_date(src.value): dst.number_format = 'DD/MM'
+                if _vc_is_date(src.value): dst.number_format = 'DD-MMM'
             if src.comment and src.comment.text:
                 dst.comment = Comment(src.comment.text, 'Actualizador')
         # revision clinica (4 meses)
@@ -750,7 +751,7 @@ def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_ma
             sc = summ.get(k)
             if sc and ws.cell(r, sc).value is not None:
                 dst = v[L('sum', k) + str(t)]; dst.value = ws.cell(r, sc).value
-                if k == 'Prox.Secado' and _vc_is_date(dst.value): dst.number_format = 'DD/MM/YY'
+                if k == 'Prox.Secado' and _vc_is_date(dst.value): dst.number_format = 'DD/MM/YYYY'
         v[cDif + str(t)] = '=IF(OR(%s%d="",%s%d=""),"",%s%d-%s%d)' % (cLeUC, t, cLeCA, t, cLeUC, t, cLeCA, t)
         v[cOrd + str(t)] = '=IF(LEN(TRIM(%s%d))>0,SUMPRODUCT(--(LEN(TRIM($%s$%d:%s%d))>0)),"")' % (cRevCur, t, cRevCur, R0, cRevCur, t)
 
@@ -810,7 +811,7 @@ def _vc_muestras(wb, vname, name, tambo, cur_ym, ncows):
         if _vc_is_date(h): c.number_format = 'mmm-yy'
         c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal='center', wrap_text=True)
     widths = {'A': 5.4, 'B': 9, 'C': 14.4, 'D': 16.6, 'E': 6.7, 'F': 8, 'G': 6.4, 'H': 8, 'I': 8, 'J': 8,
-              'K': 5.3, 'L': 5.1, 'M': 5.7, 'N': 5.3, 'O': 11, 'P': 21.6, 'Q': 8, 'R': 4}
+              'K': 5.3, 'L': 5.1, 'M': 5.7, 'N': 5.3, 'O': 13, 'P': 21.6, 'Q': 8, 'R': 4}
     for k, w in widths.items(): m.column_dimensions[k].width = w
     # fuente de cada columna de Muestras
     src = {'B': col('RP'), 'C': hdr[cur_ym][1], 'D': rev_prev, 'E': col('Nro.Lact'), 'F': col('Dias ACU'), 'G': col('Le.UC'),
@@ -822,7 +823,7 @@ def _vc_muestras(wb, vname, name, tambo, cur_ym, ncows):
         m['R%d' % r] = '=IFERROR(MATCH(%d,%s,0),"")' % (i + 1, rng(ordc))
         for k, s in src.items():
             m['%s%d' % (k, r)] = '=IF($R%d="","",IF(INDEX(%s,$R%d)="","",INDEX(%s,$R%d)))' % (r, rng(s), r, rng(s), r)
-        m['O%d' % r].number_format = 'DD/MM/YY'
+        m['O%d' % r].number_format = 'DD/MM/YYYY'
         for cc in range(1, 18):
             m.cell(r, cc).border = box
             if cc in (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14): m.cell(r, cc).alignment = Alignment(horizontal='center')
@@ -907,6 +908,37 @@ def sort_rows_by_rp(ws, header_row):
         except Exception:
             pass
     return moved
+
+def apply_style_fmt(ws, header_row, cols, last_col=None):
+    """Fechas: MC dd/mm; Ini.Lact y Prox.Secado dd/mm/aaaa. Fuente Arial 12 en encabezado y datos."""
+    from copy import copy
+    last = header_row
+    for r in range(header_row + 1, ws.max_row + 1):
+        if ws.cell(r, 1).value is not None: last = r
+    maxc = last_col or ws.max_column
+    mc_set = set(cols['mc_cols'].values())
+    full_set = set([2])
+    for k in ('ini_lact', 'prox_secado'):
+        if cols.get(k): full_set.add(cols[k])
+    for r in range(header_row, last + 1):
+        for c in range(1, maxc + 1):
+            cell = ws.cell(r, c)
+            f = copy(cell.font)
+            f.name = 'Arial'
+            f.sz = 12
+            cell.font = f
+            if r > header_row and isinstance(cell.value, (datetime.datetime, datetime.date)):
+                if c in mc_set: cell.number_format = 'DD-MMM'
+                elif c in full_set: cell.number_format = 'DD/MM/YYYY'
+
+def font_all(ws):
+    from copy import copy
+    for row in ws.iter_rows():
+        for cell in row:
+            f = copy(cell.font)
+            f.name = 'Arial'
+            f.sz = 12
+            cell.font = f
 
 def run_update(excel_data, csv_data, mc_data, csv_filename):
     excel_data = bytes(excel_data)
@@ -1080,7 +1112,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
                 rest_dates = sorted_dates[1:]
 
                 cell.value = first_date
-                cell.number_format = 'DD/MM/YYYY'
+                cell.number_format = 'DD-MMM'
                 if rest_dates:
                     comment_text = 'Otros episodios: ' + ' | '.join(d.strftime('%d/%m') for d in rest_dates)
                     cell.comment = Comment(comment_text, 'Actualizador Tambos')
@@ -1119,12 +1151,22 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         sort_rows_by_rp(ws, header_row)
     except Exception:
         pass
+    try:
+        apply_style_fmt(ws, header_row, cols)
+    except Exception:
+        pass
 
     vc_names=[]
     try:
         vc_names=build_vc_sheets(wb, ws, header_row)
     except Exception as e:
         vc_names=['ERROR vc: '+str(e)]
+
+    try:
+        for nm in vc_names:
+            if nm in wb.sheetnames: font_all(wb[nm])
+    except Exception:
+        pass
 
     out=io.BytesIO()
     wb.save(out)
