@@ -299,6 +299,7 @@ js_result
     if(info.mc_count>0) log.push(`<span class="log-ok">✓ ${info.mc_count} registros de mastitis clínica actualizados</span>`);
     if(info.new_rps.length>0) log.push(`<span class="log-info">+ ${info.new_rps.length} vacas nuevas: ${info.new_rps.join(', ')}</span>`);
     if(info.baja_rps.length>0) log.push(`<span class="log-warn">↓ ${info.baja_rps.length} vacas movidas a Bajas</span>`);
+    if(info.vc && info.vc.length>0) log.push(info.vc[0].indexOf('ERROR')===0 ? `<span class="log-warn">! ${info.vc[0]}</span>` : `<span class="log-ok">✓ Hojas generadas: ${info.vc.join(', ')}</span>`);
     document.getElementById('log-box').innerHTML = log.join('<br>');
 
     document.getElementById('result-box').classList.add('visible');
@@ -501,6 +502,356 @@ def normalize_rp(val):
         except ValueError:
             return s
     return s.upper()
+
+
+# ---- Hojas "vc problema" y "Muestras" (agregadas por el actualizador) ----
+# Codigo ASCII puro: se embebe dentro de un template literal de JS.
+import datetime
+from openpyxl.comments import Comment
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter as CL
+from openpyxl.formatting.rule import FormulaRule
+
+_I = chr(237); _O = chr(243); _A = chr(225); _E = chr(233); _U = chr(250); _N = chr(241)
+
+def _vc_is_date(v):
+    return isinstance(v, (datetime.datetime, datetime.date))
+
+def _vc_month(v):
+    return (v.year, v.month)
+
+def _vc_runs(ws, hr):
+    """Bloques contiguos de columnas con encabezado fecha: [(c1, c2), ...]."""
+    runs = []
+    cur = None
+    for c in range(3, ws.max_column + 1):
+        v = ws.cell(hr, c).value
+        if _vc_is_date(v):
+            if cur is None: cur = [c, c]
+            else: cur[1] = c
+        else:
+            if cur is not None:
+                runs.append(tuple(cur)); cur = None
+    if cur is not None: runs.append(tuple(cur))
+    return runs
+
+def _vc_add_months(ym, k):
+    y, m = ym
+    t = y * 12 + (m - 1) + k
+    return (t // 12, t % 12 + 1)
+
+def _vc_num(v):
+    if v is None: return None
+    try:
+        f = float(str(v).replace(',', '.').strip())
+    except Exception:
+        return None
+    return f
+
+def build_vc_sheets(wb, ws, hr, tambo_col=None):
+    """Agrega por tambo las hojas 'vc problema' y 'Muestras'. Devuelve lista de nombres creados."""
+    runs = _vc_runs(ws, hr)
+    if len(runs) < 3:
+        return []
+    mc_run, rev_run, rcs_run = runs[0], runs[1], runs[2]
+    # columnas de texto entre el bloque de revision y el de RCS
+    txt = {}
+    for c in range(rev_run[1] + 1, rcs_run[0]):
+        v = ws.cell(hr, c).value
+        if v is not None: txt[str(v).strip()] = c
+    # resumen final: nombres a la derecha del bloque RCS
+    summ = {}
+    for c in range(rcs_run[1] + 1, ws.max_column + 1):
+        v = ws.cell(hr, c).value
+        if v is not None: summ[str(v).strip()] = c
+    if tambo_col is None: tambo_col = summ.get('Tambo')
+
+    # mes del control actual = ultima columna del bloque RCS
+    cur_ym = _vc_month(ws.cell(hr, rcs_run[1]).value)
+
+    def colmap(run):
+        d = {}
+        for c in range(run[0], run[1] + 1):
+            d[_vc_month(ws.cell(hr, c).value)] = c
+        return d
+    mc_map, rev_map, rcs_map = colmap(mc_run), colmap(rev_run), colmap(rcs_run)
+
+    # filas con RP
+    rows = []
+    for r in range(hr + 1, ws.max_row + 1):
+        v = ws.cell(r, 1).value
+        if v is None or str(v).strip() == '': continue
+        rows.append(r)
+    groups = {}
+    for r in rows:
+        t = ws.cell(r, tambo_col).value if tambo_col else ''
+        groups.setdefault(str(t) if t is not None else '', []).append(r)
+    if not groups: return []
+
+    created = []
+    multi = len(groups) > 1
+    for tambo, grows in sorted(groups.items()):
+        suf = (' ' + tambo) if multi else ''
+        n1 = ('vc problema' + suf)[:31]
+        n2 = ('Muestras' + suf)[:31]
+        for nm in (n1, n2):
+            if nm in wb.sheetnames: del wb[nm]
+        _vc_problema(wb, ws, hr, grows, tambo, n1, cur_ym, mc_map, rev_map, rcs_map, txt, summ)
+        _vc_muestras(wb, n1, n2, tambo, cur_ym, len(grows))
+        created.extend([n1, n2])
+    return created
+
+def _vc_problema(wb, ws, hr, grows, tambo, name, cur_ym, mc_map, rev_map, rcs_map, txt, summ):
+    v = wb.create_sheet(name)
+    HDR = 14; R0 = 15; R1 = R0 + len(grows) - 1
+    blue = PatternFill('solid', fgColor='1F4E78'); wf = Font(bold=True, color='FFFFFF', size=10)
+    grey = PatternFill('solid', fgColor='D9E1F2'); thin = Side(style='thin', color='BFBFBF')
+    mc_months = [_vc_add_months(cur_ym, -k) for k in range(4, -1, -1)]    # 5 meses
+    rev_months = [_vc_add_months(cur_ym, -k) for k in range(4, -1, -1)]   # 5 meses, el ultimo vacio
+    rcs_months = [_vc_add_months(cur_ym, -k) for k in range(5, -1, -1)]   # 6 meses
+
+    # --- definicion de columnas ---
+    cols = []   # (clave, encabezado, ancho)
+    cols.append(('rp', 'RP', 7))
+    cols.append(('ini', 'Ini.Lact', 10))
+    for ym in mc_months: cols.append(('mc', ym, 7.5))
+    for ym in rev_months: cols.append(('rev', ym, 9))
+    for k in ('Observaciones', 'AU', 'PP', 'Ac'):
+        cols.append(('txt', k, 14 if k == 'Observaciones' else 7))
+    for ym in rcs_months: cols.append(('rcs', ym, 7))
+    cols.append(('em', 'EM', 6))
+    cols.append(('mclact', 'MC lact.', 7))
+    cols.append(('motivo', 'Sugerencia', 12))
+    for k in ('Nro.Lact', 'Dias ACU', 'Le.UC', 'Le.CA', 'Prox.Secado', 'Estado', 'Est.Actual', 'Tambo'):
+        cols.append(('sum', k, 9))
+    cols.append(('dif', 'dif prod', 7))
+    cols.append(('ord', 'n muestreo', 8))
+    cols.append(('e1', 'ctrl ant.', 6)); cols.append(('e2', 'ctrl ult.', 6)); cols.append(('cod', 'cod', 6))
+    ncol = len(cols)
+    idx = {}   # (clave, detalle) -> letra
+    for i, (k, h, w) in enumerate(cols, start=1):
+        idx[(k, h)] = CL(i)
+        v.column_dimensions[CL(i)].width = w
+    L = lambda k, h=None: idx[(k, h)] if (k, h) in idx else None
+    cRp, cIni = L('rp', 'RP'), L('ini', 'Ini.Lact'); cRevCur = L('rev', rev_months[-1])
+    cRcsPrev, cRcsLast = L('rcs', rcs_months[-2]), L('rcs', rcs_months[-1])
+    cE1, cE2, cCod, cEm = L('e1', 'ctrl ant.'), L('e2', 'ctrl ult.'), L('cod', 'cod'), L('em', 'EM')
+    cMcl, cMot, cOrd = L('mclact', 'MC lact.'), L('motivo', 'Sugerencia'), L('ord', 'n muestreo')
+    cLeUC, cLeCA, cDif = L('sum', 'Le.UC'), L('sum', 'Le.CA'), L('dif', 'dif prod')
+
+    # --- cabecera ---
+    v['A1'] = 'ANALISIS ANUAL DE CELULAS SOMATICAS - VACAS PROBLEMA'
+    v['A1'].font = Font(bold=True, size=13, color='1F4E78')
+    v['A2'] = 'Establecimiento:'; v['A2'].font = Font(bold=True); v['C2'] = tambo
+    v['A3'] = 'Control lechero:'; v['A3'].font = Font(bold=True)
+    v['C3'] = datetime.date(cur_ym[0], cur_ym[1], 1); v['C3'].number_format = 'mmm-yy'
+    v['A4'] = 'Como se usa: filtre la lista, anote en la columna de revisacion del ultimo control las vacas a revisar; la hoja Muestras se completa sola.'
+    v['A4'].font = Font(italic=True, color='7F7F7F')
+    # resumen EM (conteos)
+    v['A6'] = 'Estado mamario (EM)'; v['A6'].font = Font(bold=True)
+    for i, (code, lab) in enumerate((('S', 'S sana'), ('NI', 'NI nueva infeccion'), ('AC', 'AC autocuracion'),
+                                     ('C', 'C cronica'), ('1CA', '1CA primer control'), ('SC', 'SC sin control'))):
+        v.cell(7 + i, 1).value = lab
+        v.cell(7 + i, 3).value = '=COUNTIF($%s$%d:$%s$%d,"%s")' % (cEm, R0, cEm, R1, code)
+    v['A13'] = '=SUBTOTAL(3,$%s$%d:$%s$%d)' % (cRp, R0, cRp, R1); v['A13'].font = Font(bold=True)
+    v['B13'] = 'vacas'
+    # etiquetas de grupo (fila 13) y encabezados (fila 14)
+    def group(first, last, text):
+        v[first + '13'] = text
+        v[first + '13'].font = Font(bold=True, color='1F4E78')
+    group(L('mc', mc_months[0]), None, 'mastitis cl' + _I + 'nica')
+    group(L('rev', rev_months[0]), None, 'revisaci' + _O + 'n cl' + _I + 'nica')
+    group(L('rcs', rcs_months[0]), None, 'RCS (x1000 c' + _E + 'l/ml)')
+    for i, (k, h, w) in enumerate(cols, start=1):
+        c = v.cell(HDR, i)
+        if isinstance(h, tuple):
+            c.value = datetime.date(h[0], h[1], 1); c.number_format = 'mmm-yy'
+        else:
+            c.value = h
+        c.fill = blue; c.font = wf
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    v.row_dimensions[HDR].height = 30
+
+    # --- datos ---
+    for n, r in enumerate(grows):
+        t = R0 + n
+        rp = ws.cell(r, 1).value
+        ini = ws.cell(r, 2).value
+        v[cRp + str(t)] = rp
+        if _vc_is_date(ini):
+            v[cIni + str(t)] = ini; v[cIni + str(t)].number_format = 'DD/MM/YY'
+        ini_d = (ini.date() if isinstance(ini, datetime.datetime) else ini) if _vc_is_date(ini) else None
+        # MC (5 meses) + comentarios
+        for ym in mc_months:
+            sc = mc_map.get(ym)
+            if not sc: continue
+            src = ws.cell(r, sc); dst = v[L('mc', ym) + str(t)]
+            if src.value is not None:
+                dst.value = src.value
+                if _vc_is_date(src.value): dst.number_format = 'DD/MM'
+            if src.comment and src.comment.text:
+                dst.comment = Comment(src.comment.text, 'Actualizador')
+        # revision clinica (4 meses)
+        for ym in rev_months:
+            sc = rev_map.get(ym)
+            if not sc: continue
+            src = ws.cell(r, sc)
+            if src.value is not None: v[L('rev', ym) + str(t)] = src.value
+            if src.comment and src.comment.text:
+                v[L('rev', ym) + str(t)].comment = Comment(src.comment.text, 'Actualizador')
+        for k in ('Observaciones', 'AU', 'PP', 'Ac'):
+            sc = txt.get(k)
+            if sc and ws.cell(r, sc).value is not None: v[L('txt', k) + str(t)] = ws.cell(r, sc).value
+        # RCS (6 meses)
+        for ym in rcs_months:
+            sc = rcs_map.get(ym)
+            if not sc: continue
+            val = ws.cell(r, sc).value
+            if ym == rcs_months[-1] and summ.get('Re.UC'):
+                val = ws.cell(r, summ['Re.UC']).value
+            if val is not None:
+                f = _vc_num(val)
+                v[L('rcs', ym) + str(t)] = f if f is not None else val
+        # formulas EM (penultimo y ultimo control)
+        v[cE1 + str(t)] = '=IF(%s%d>200,"E",IF(%s%d=0,"SC","S"))' % (cRcsPrev, t, cRcsPrev, t)
+        v[cE2 + str(t)] = '=IF(%s%d>200,"E",IF(%s%d=0,"SC","S"))' % (cRcsLast, t, cRcsLast, t)
+        v[cCod + str(t)] = '=%s%d&%s%d' % (cE1, t, cE2, t)
+        x = '%s%d' % (cCod, t)
+        def _st(ym):
+            sc = rcs_map.get(ym)
+            f = _vc_num(ws.cell(r, sc).value) if sc else None
+            if ym == rcs_months[-1] and summ.get('Re.UC'):
+                f = _vc_num(ws.cell(r, summ['Re.UC']).value)
+            if f is None or f == 0: return 'SC'
+            return 'E' if f > 200 else 'S'
+        _cd = _st(rcs_months[-2]) + _st(rcs_months[-1])
+        _em = {'SS': 'S', 'SE': 'NI', 'ES': 'AC', 'EE': 'C', 'SCS': '1CA', 'SCE': '1CA'}.get(_cd, 'SC')
+        v[cEm + str(t)] = _em
+        v[cEm + str(t)].alignment = Alignment(horizontal='center')
+        # MC en la lactancia actual: episodios (celdas con fecha >= Ini.Lact + los de comentarios)
+        cnt = 0
+        for ym, sc in mc_map.items():
+            src = ws.cell(r, sc)
+            if src.value is None and not (src.comment and src.comment.text): continue
+            d = src.value.date() if isinstance(src.value, datetime.datetime) else (src.value if isinstance(src.value, datetime.date) else None)
+            if ini_d is not None and d is not None and d < ini_d: continue
+            n_ep = 1 if src.value is not None else 0
+            if src.comment and src.comment.text:
+                n_ep += src.comment.text.count('/')
+            cnt += n_ep
+        v[cMcl + str(t)] = cnt
+        v[cMot + str(t)] = ('=TRIM(IF(%s%d="C","CR ",IF(%s%d="NI","NI ",IF(%s%d="1CA","1CA ","")))&IF(%s%d>=2,"RPT",""))'
+                            % (cEm, t, cEm, t, cEm, t, cMcl, t))
+        # resumen final
+        for k in ('Nro.Lact', 'Dias ACU', 'Le.UC', 'Le.CA', 'Prox.Secado', 'Estado', 'Est.Actual', 'Tambo'):
+            sc = summ.get(k)
+            if sc and ws.cell(r, sc).value is not None:
+                dst = v[L('sum', k) + str(t)]; dst.value = ws.cell(r, sc).value
+                if k == 'Prox.Secado' and _vc_is_date(dst.value): dst.number_format = 'DD/MM/YY'
+        v[cDif + str(t)] = '=IF(OR(%s%d="",%s%d=""),"",%s%d-%s%d)' % (cLeUC, t, cLeCA, t, cLeUC, t, cLeCA, t)
+        v[cOrd + str(t)] = '=IF(LEN(TRIM(%s%d))>0,SUMPRODUCT(--(LEN(TRIM($%s$%d:%s%d))>0)),"")' % (cRevCur, t, cRevCur, R0, cRevCur, t)
+
+    # --- formato ---
+    v.freeze_panes = 'C' + str(R0)
+    for k in ('e1','e2','cod','ord'): v.column_dimensions[L(k, {'e1':'ctrl ant.','e2':'ctrl ult.','cod':'cod','ord':'n muestreo'}[k])].hidden = True
+    v.auto_filter.ref = 'A%d:%s%d' % (HDR, CL(ncol), R1)
+    rng = 'A%d:%s%d' % (R0, CL(ncol), R1)
+    v.conditional_formatting.add(rng, FormulaRule(formula=['TRIM($%s%d)<>""' % (cRevCur, R0)],
+                                                  fill=PatternFill('solid', bgColor='FFF2CC', fgColor='FFF2CC')))
+    emr = '%s%d:%s%d' % (cEm, R0, cEm, R1)
+    for code, color in (('C', 'F8CBAD'), ('NI', 'FFD966'), ('AC', 'C6E0B4'), ('1CA', 'BDD7EE')):
+        v.conditional_formatting.add(emr, FormulaRule(formula=['$%s%d="%s"' % (cEm, R0, code)],
+                                                      fill=PatternFill('solid', bgColor=color, fgColor=color)))
+    rc = '%s%d:%s%d' % (L('rcs', rcs_months[0]), R0, cRcsLast, R1)
+    v.conditional_formatting.add(rc, FormulaRule(formula=['%s%d>200' % (L('rcs', rcs_months[0]), R0)],
+                                                 font=Font(color='C00000', bold=True)))
+    wb.calculation.fullCalcOnLoad = True
+    v.sheet_view.zoomScale = 90
+    v.sheet_properties.tabColor = 'C00000'
+
+def _vc_muestras(wb, vname, name, tambo, cur_ym, ncows):
+    m = wb.create_sheet(name)
+    v = wb[vname]
+    R0 = 15; R1 = R0 + ncows - 1
+    blue = PatternFill('solid', fgColor='1F4E78'); wf = Font(bold=True, color='FFFFFF', size=10)
+    thin = Side(style='thin', color='7F7F7F'); box = Border(left=thin, right=thin, top=thin, bottom=thin)
+    # buscar letras en vc problema por encabezado
+    hdr = {}
+    for c in range(1, v.max_column + 1):
+        x = v.cell(14, c).value
+        key = (x.year, x.month) if _vc_is_date(x) else x
+        hdr.setdefault(key, []).append(CL(c))
+    mc_cur = hdr[cur_ym][0]
+    ym1 = _vc_add_months(cur_ym, -1); ym2 = _vc_add_months(cur_ym, -2)
+    # hay 3 columnas con fecha repetida (mc, rev, rcs): mc=1ra, rev=2da, rcs=3ra
+    rev_prev = hdr[ym1][1]
+    rcs3 = [hdr[_vc_add_months(cur_ym, -k)][2] for k in (2, 1, 0)]
+    def col(name_):
+        return hdr[name_][0]
+    q = "'%s'!" % vname
+    def rng(letter):
+        return "%s$%s$%d:$%s$%d" % (q, letter, R0, letter, R1)
+    ordc = col('n muestreo')
+
+    m['A1'] = 'Tambo'; m['A1'].font = Font(bold=True); m['C1'] = tambo; m['C1'].font = Font(bold=True, size=12)
+    m['O1'] = datetime.date(cur_ym[0], cur_ym[1], 1); m['O1'].number_format = 'mmm-yy'
+    m['A2'] = 'Planilla de muestreo: se completa sola con las vacas anotadas en la revision del ultimo control de la hoja "%s".' % vname
+    m['A2'].font = Font(italic=True, color='7F7F7F')
+    m.merge_cells('K6:N6'); m['K6'] = 'Cuartos'; m['K6'].alignment = Alignment(horizontal='center')
+    m['K6'].font = Font(bold=True)
+    heads = ['Ord', 'RP', datetime.date(cur_ym[0], cur_ym[1], 1), datetime.date(ym1[0], ym1[1], 1),
+             'Nro.Lact', 'Dias ACU', 'Le.UC', datetime.date(ym2[0], ym2[1], 1), datetime.date(ym1[0], ym1[1], 1),
+             datetime.date(cur_ym[0], cur_ym[1], 1), 'AI', 'AD', 'PI', 'PD', 'Prox.Secado', 'Observaciones', 'Ac']
+    for i, h in enumerate(heads, start=1):
+        c = m.cell(7, i); c.value = h
+        if _vc_is_date(h): c.number_format = 'mmm-yy'
+        c.fill = blue; c.font = wf; c.alignment = Alignment(horizontal='center', wrap_text=True)
+    widths = {'A': 5.4, 'B': 9, 'C': 14.4, 'D': 16.6, 'E': 6.7, 'F': 8, 'G': 6.4, 'H': 8, 'I': 8, 'J': 8,
+              'K': 5.3, 'L': 5.1, 'M': 5.7, 'N': 5.3, 'O': 11, 'P': 21.6, 'Q': 8, 'R': 4}
+    for k, w in widths.items(): m.column_dimensions[k].width = w
+    # fuente de cada columna de Muestras
+    src = {'B': col('RP'), 'C': hdr[cur_ym][1], 'D': rev_prev, 'E': col('Nro.Lact'), 'F': col('Dias ACU'), 'G': col('Le.UC'),
+           'H': rcs3[0], 'I': rcs3[1], 'J': rcs3[2], 'O': col('Prox.Secado'), 'P': col('Observaciones'), 'Q': col('Ac')}
+    NROW = 88
+    for i in range(NROW):
+        r = 8 + i
+        # R = posicion de la vaca marcada n en vc problema
+        m['R%d' % r] = '=IFERROR(MATCH(%d,%s,0),"")' % (i + 1, rng(ordc))
+        for k, s in src.items():
+            m['%s%d' % (k, r)] = '=IF($R%d="","",IF(INDEX(%s,$R%d)="","",INDEX(%s,$R%d)))' % (r, rng(s), r, rng(s), r)
+        m['O%d' % r].number_format = 'DD/MM/YY'
+        for cc in range(1, 18):
+            m.cell(r, cc).border = box
+            if cc in (1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14): m.cell(r, cc).alignment = Alignment(horizontal='center')
+    m.column_dimensions['R'].hidden = True
+    m.freeze_panes = 'C8'
+    # --- secciones al pie (para completar a mano) ---
+    m['A96'] = 'DOBLE POMO DE SECADO'; m['A96'].font = Font(bold=True, size=12)
+    m['B99'] = 'Fecha:';
+    m['B101'] = 'Tratamientos:'; m['B101'].font = Font(bold=True)
+    m['B102'] = 'Rp'; m.merge_cells('E102:H102'); m['E102'] = 'Tratamiento'
+    for c in ('B102', 'E102'): m[c].font = Font(bold=True); m[c].fill = PatternFill('solid', fgColor='D9E1F2')
+    for r in range(103, 109):
+        for cc in range(2, 12): m.cell(r, cc).border = box
+    m['B110'] = 'RP DE VACAS PARA ORDE' + _N + 'AR AL FINAL'; m['B110'].font = Font(bold=True, size=12)
+    h2 = ['RP', None, None, 'Lact', 'DEL', 'litros', 'sec', 'Est',
+          datetime.date(ym2[0], ym2[1], 1), datetime.date(ym1[0], ym1[1], 1), datetime.date(cur_ym[0], cur_ym[1], 1), 'seg']
+    for i, h in enumerate(h2, start=2):
+        c = m.cell(113, i)
+        if h is not None:
+            c.value = h
+            if _vc_is_date(h): c.number_format = 'mmm-yy'
+        c.fill = PatternFill('solid', fgColor='D9E1F2'); c.font = Font(bold=True); c.border = box
+        c.alignment = Alignment(horizontal='center')
+    for r in range(114, 126):
+        for cc in range(2, 14): m.cell(r, cc).border = box
+    # impresion
+    m.page_setup.orientation = 'portrait'; m.page_setup.paperSize = 9
+    m.page_setup.fitToWidth = 1; m.page_setup.fitToHeight = 0
+    m.sheet_properties.pageSetUpPr.fitToPage = True
+    m.print_area = 'A1:Q125'
+    m.print_title_rows = '7:7'
+    m.sheet_properties.tabColor = '2E75B6'
 
 def run_update(excel_data, csv_data, mc_data, csv_filename):
     excel_data = bytes(excel_data)
@@ -709,6 +1060,12 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
         for r in rows_to_delete:
             ws.delete_rows(r)
 
+    vc_names=[]
+    try:
+        vc_names=build_vc_sheets(wb, ws, header_row)
+    except Exception as e:
+        vc_names=['ERROR vc: '+str(e)]
+
     out=io.BytesIO()
     wb.save(out)
     out.seek(0)
@@ -717,7 +1074,7 @@ def run_update(excel_data, csv_data, mc_data, csv_filename):
     today=datetime.date.today()
     fname=f'base_actualizada_{meses[today.month-1]}-{str(today.year)[2:]}.xlsx'
 
-    return out.read(), {'updated':updated,'new_rps':new_rps,'baja_rps':baja_rps,'mc_count':mc_count,'month':detect_month(csv_filename),'filename':fname}
+    return out.read(), {'updated':updated,'new_rps':new_rps,'baja_rps':baja_rps,'mc_count':mc_count,'vc':vc_names,'month':detect_month(csv_filename),'filename':fname}
 
 `;
 </script>
