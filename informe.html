@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script>(function(){var ok=false;try{ok=sessionStorage.getItem('panel_ok')==='1';}catch(e){}if(!ok){location.replace('tambocontrol.html');}})();</script>
+<style>#login-screen{display:none !important}#app-content{display:block !important}.volver-menu{position:fixed;top:10px;left:12px;z-index:50;font-family:'DM Mono',monospace;font-size:11px;color:#8892b0;text-decoration:none;background:rgba(24,28,39,.85);border:1px solid #2a3050;border-radius:8px;padding:6px 10px}.volver-menu:hover{color:#38d9a9;border-color:#38d9a9}@media print{.volver-menu{display:none !important}}</style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Informe Mensual - Tambos</title>
@@ -101,6 +103,7 @@
 </style>
 </head>
 <body>
+<a class="volver-menu" href="tambocontrol.html">&larr; Tambo Control</a>
 
 <div id="login-screen">
   <div class="login-box">
@@ -433,18 +436,43 @@ const REF = {
   cura:{v:0.64, txt:'≥ 64%'},
   vaq:{v:0.74, txt:'≥ 74%'}
 };
-const REF_NOTE = 'Meta del grupo: valor alcanzado por el 25% de mejores tambos del grupo (promedio 2021-2025). Referencia orientativa.';
+const REF_NOTE = 'Meta del grupo: valor alcanzado por el 25% de mejores tambos del grupo en ese mes (promedio 2021-2025). Referencia orientativa.';
+const REF_M = {
+  rcs:{meta:[226.0, 233.0, 247.0, 244.0, 222.0, 220.0, 212.0, 209.0, 193.0, 196.0, 197.0, 204.0], prom:[280.0, 309.0, 322.0, 310.0, 279.0, 257.0, 242.0, 235.0, 230.0, 226.0, 244.0, 258.0]},
+  mc:{meta:[0.0424, 0.0529, 0.0625, 0.0493, 0.0511, 0.0489, 0.0496, 0.047, 0.0444, 0.037, 0.0349, 0.0377], prom:[0.0732, 0.0812, 0.0969, 0.0858, 0.0807, 0.0757, 0.0771, 0.075, 0.0677, 0.0667, 0.0704, 0.071]}
+};
+// Cuadro con meta y promedio del grupo dentro del grafico (arriba a la derecha)
+const refBoxPlugin = {
+  id:'refBox',
+  afterDraw(chart, args, opts){
+    if(!opts || !opts.lines || !opts.lines.length) return;
+    const {ctx, chartArea} = chart;
+    ctx.save();
+    ctx.font = 'bold 10.5px sans-serif';
+    const pad = 8, lh = 15;
+    const w = Math.max(...opts.lines.map(l=>ctx.measureText(l.text).width)) + pad*2;
+    const h = opts.lines.length*lh + pad*2 - 3;
+    const x = chartArea.right - w - 6, y = chartArea.top + 6;
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.strokeStyle = '#BDC5CD'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.fill(); ctx.stroke();
+    ctx.textBaseline = 'top';
+    opts.lines.forEach((l,i)=>{ ctx.fillStyle = l.color; ctx.fillText(l.text, x+pad, y+pad-1+i*lh); });
+    ctx.restore();
+  }
+};
+function semaforo(v, meta, prom){ return v<=meta ? 'kpi-green' : (v<=prom ? 'kpi-amber' : 'kpi-red'); }
 function refLine(label, v, color){ return {label:label, value:v, color:color}; }
 const PALETTE = {navy:'#1F3864', blue:'#2E86AB', green:'#1E8449', amber:'#D68910', red:'#C0392B', grey:'#95A5A6', greyLine:'#BDC5CD'};
 
 function destroyCharts() { charts.forEach(c=>c.destroy()); charts = []; }
 
-function lineChart(canvasId, labels, series) {
+function lineChart(canvasId, labels, series, boxLines) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   const ch = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets: series.map(s=>({label:s.label, data:s.data, borderColor:s.color, backgroundColor:s.color, borderDash:s.dashed?[6,4]:[], tension:0.25, pointRadius:3.5, borderWidth:2.4})) },
-    options: { responsive:true, animation:false, plugins:{legend:{position:'top', labels:{boxWidth:14,font:{size:10.5}}}}, scales:{y:{ticks:{font:{size:9.5}}, grid:{color:'#EEF1F3'}}, x:{ticks:{font:{size:9.5}}, grid:{display:false}}} }
+    options: { responsive:true, animation:false, plugins:{legend:{position:'top', labels:{boxWidth:14,font:{size:10.5}}}, refBox:{lines:boxLines||[]}}, scales:{y:{ticks:{font:{size:9.5}}, grid:{color:'#EEF1F3'}}, x:{ticks:{font:{size:9.5}}, grid:{display:false}}} },
+    plugins:[refBoxPlugin]
   });
   charts.push(ch);
 }
@@ -484,7 +512,7 @@ function buildReport(d) {
   const rcsPrevVal = (k.rcs && rcsL.idx > 0) ? k.rcs[rcsL.idx - 1] : null;
   if (rcsL.val !== null) {
     let lines = [];
-    let clsDelta = null;
+    let clsDelta = null, refCls = null;
     if (rcsPrevVal !== null && rcsPrevVal !== undefined) {
       const dPrev = (rcsL.val - rcsPrevVal) / rcsPrevVal * 100;
       lines.push((dPrev<0?'-':'+') + Math.abs(dPrev).toFixed(0) + '% vs. mes anterior');
@@ -494,9 +522,13 @@ function buildReport(d) {
       lines.push((dHist<0?'-':'+') + Math.abs(dHist).toFixed(0) + '% vs. promedio 5 años (histórico)');
       clsDelta = dHist;
     }
-    lines.push('Meta del grupo: ' + REF.rcs.txt);
+    const mR = REF_M.rcs, iR = rcsL.idx;
+    if (mR.meta[iR] !== undefined) {
+      lines.push('Meta del grupo: ' + mR.meta[iR] + ' mil &middot; Promedio: ' + mR.prom[iR] + ' mil');
+      clsDelta = null; refCls = semaforo(rcsL.val, mR.meta[iR], mR.prom[iR]);
+    }
     const sub = lines.length ? lines.join('<br>') : 'Ultimo dato disponible';
-    const cls = clsDelta===null ? 'kpi-blue' : (clsDelta<0 ? 'kpi-green' : (clsDelta<10 ? 'kpi-amber' : 'kpi-red'));
+    const cls = refCls ? refCls : (clsDelta===null ? 'kpi-blue' : (clsDelta<0 ? 'kpi-green' : (clsDelta<10 ? 'kpi-amber' : 'kpi-red')));
     kpiHtml += kpiCard('RCS (x1000 cél/ml)', fmtNum(rcsL.val), sub, cls);
   }
   const ufcL = lastValid(k.ufc);
@@ -510,7 +542,12 @@ function buildReport(d) {
       sub = (delta<0?'-':'+') + Math.abs(delta).toFixed(0) + '% vs. promedio 5 años (' + mesesLbl[mcL.idx] + ')';
       cls = delta<0 ? 'kpi-green' : (delta<15 ? 'kpi-amber' : 'kpi-red');
     }
-    kpiHtml += kpiCard('% MASTITIS CLINICA', fmtPct(mcL.val), sub + '<br>Meta del grupo: ' + REF.mc.txt, cls);
+    const mM = REF_M.mc, iM = mcL.idx;
+    if (mM.meta[iM] !== undefined) {
+      sub += '<br>Meta del grupo: ' + fmtPct(mM.meta[iM]) + ' &middot; Promedio: ' + fmtPct(mM.prom[iM]);
+      cls = semaforo(mcL.val, mM.meta[iM], mM.prom[iM]);
+    }
+    kpiHtml += kpiCard('% MASTITIS CLINICA', fmtPct(mcL.val), sub, cls);
   }
   const prevL = lastValid(k.prev_subclin);
   if (prevL.val !== null) {
@@ -524,7 +561,7 @@ function buildReport(d) {
   let bullets = [];
   if (rcsL.val !== null && rcs5L !== null && rcs5L !== undefined) {
     const delta = (rcsL.val - rcs5L) / rcs5L * 100;
-    bullets.push(`El RCS de tanque cerro ${mesesLbl[rcsL.idx]} en ${fmtNum(rcsL.val)} mil cel/ml, ${Math.abs(delta).toFixed(0)}% ${delta<0?'por debajo':'por encima'} del promedio historico para ese mes (${fmtNum(rcs5L)} mil). Meta del grupo: ${REF.rcs.txt}.`);
+    bullets.push(`El RCS de tanque cerro ${mesesLbl[rcsL.idx]} en ${fmtNum(rcsL.val)} mil cel/ml, ${Math.abs(delta).toFixed(0)}% ${delta<0?'por debajo':'por encima'} del promedio historico para ese mes (${fmtNum(rcs5L)} mil). ${REF_M.rcs.meta[rcsL.idx]!==undefined?'Para ese mes, la meta del grupo (mejor 25% de los tambos) es '+REF_M.rcs.meta[rcsL.idx]+' mil y el promedio del grupo '+REF_M.rcs.prom[rcsL.idx]+' mil.':''}`);
   }
   if (mcL.val !== null) {
     const mc5 = k.pct_mastitis_5y ? k.pct_mastitis_5y[mcL.idx] : null;
@@ -534,7 +571,8 @@ function buildReport(d) {
       const delta = (mcL.val - mc5) / mc5 * 100;
       txt += `, ${Math.abs(delta).toFixed(0)}% ${delta<0?'por debajo':'por encima'} del promedio historico de ese mes (${fmtPct(mc5)})`;
     }
-    txt += '. Meta del grupo: ' + REF.mc.txt + '.';
+    txt += '.';
+    if (REF_M.mc.meta[mcL.idx] !== undefined) txt += ' Para ese mes, la meta del grupo (mejor 25% de los tambos) es ' + fmtPct(REF_M.mc.meta[mcL.idx]) + ' y el promedio del grupo ' + fmtPct(REF_M.mc.prom[mcL.idx]) + '.';
     if (pend > 0) txt += ` ${pend===1?'El ultimo mes':'Los ultimos '+pend+' meses'} todavia no ${pend===1?'tiene':'tienen'} el dato cerrado.`;
     bullets.push(txt);
   }
@@ -569,21 +607,31 @@ function buildReport(d) {
   // ---- Charts placeholders ----
   let chartDefs = [];
   if (hasData(k.rcs)) {
-    html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los últimos años':''}. <strong>Meta del grupo: ${REF.rcs.txt}.</strong></p><canvas id="ch_rcs"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Evolucion del RCS de tanque</h3><p class="rp-intro">RCS mensual${k.rcs_5y?', comparado contra el promedio del mismo mes en los últimos años':''}. El cuadro muestra la meta (mejor 25% de los tambos del grupo) y el promedio del grupo para el mes informado.</p><canvas id="ch_rcs"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'RCS', data:k.rcs, color:PALETTE.navy}];
       if (k.rcs_5y) series.push({label:'Promedio historico', data:k.rcs_5y, color:PALETTE.grey, dashed:true});
-      series.push({label:'Meta del grupo', data:mesesLbl.map(()=>REF.rcs.v), color:PALETTE.green, dashed:true});
-      lineChart('ch_rcs', mesesLbl, series);
+      const iR = rcsL.idx, box = [];
+      if (REF_M.rcs.meta[iR] !== undefined) {
+        box.push({text:'Grupo - ' + mesesLbl[iR], color:'#34495E'});
+        box.push({text:'Meta: ' + REF_M.rcs.meta[iR] + ' mil', color:PALETTE.green});
+        box.push({text:'Promedio: ' + REF_M.rcs.prom[iR] + ' mil', color:'#7F8C8D'});
+      }
+      lineChart('ch_rcs', mesesLbl, series, box);
     });
   }
   if (hasData(k.pct_mastitis)) {
-    html += `<div class="chart-block"><h3>Evolucion de la mastitis clinica</h3><p class="rp-intro">% de vacas con al menos un caso de mastitis clinica en el mes. <strong>Meta del grupo: ${REF.mc.txt}.</strong></p><canvas id="ch_mc"></canvas></div>`;
+    html += `<div class="chart-block"><h3>Evolucion de la mastitis clinica</h3><p class="rp-intro">% de vacas con al menos un caso de mastitis clinica en el mes. El cuadro muestra la meta (mejor 25% de los tambos del grupo) y el promedio del grupo para el mes informado.</p><canvas id="ch_mc"></canvas></div>`;
     chartDefs.push(()=>{
       const series = [{label:'% Mastitis', data:k.pct_mastitis.map(v=>v!==null?v*100:null), color:PALETTE.navy}];
       if (k.pct_mastitis_5y) series.push({label:'Promedio historico', data:k.pct_mastitis_5y.map(v=>v!==null?v*100:null), color:PALETTE.grey, dashed:true});
-      series.push({label:'Meta del grupo', data:mesesLbl.map(()=>REF.mc.v*100), color:PALETTE.green, dashed:true});
-      lineChart('ch_mc', mesesLbl, series);
+      const iM = mcL.idx, box = [];
+      if (REF_M.mc.meta[iM] !== undefined) {
+        box.push({text:'Grupo - ' + mesesLbl[iM], color:'#34495E'});
+        box.push({text:'Meta: ' + fmtPct(REF_M.mc.meta[iM]), color:PALETTE.green});
+        box.push({text:'Promedio: ' + fmtPct(REF_M.mc.prom[iM]), color:'#7F8C8D'});
+      }
+      lineChart('ch_mc', mesesLbl, series, box);
     });
   }
   if (hasData(k.pct_primeros_casos)) {
