@@ -86,6 +86,11 @@
   .chart-block{margin-bottom:20px;page-break-inside:avoid;break-inside:avoid}
   .chart-block canvas{max-height:230px}
   #report .rp-footer{color:#95A5A6;font-size:9px;text-align:center;padding:14px 0 4px;border-top:1px solid #EAECEE;margin-top:10px}
+  #report .rp-comments{margin-top:18px;page-break-inside:avoid;break-inside:avoid}
+  #report .rp-comments h3{margin-bottom:8px}
+  #report .cm-box{min-height:110px;border:1px solid #BDC5CD;border-radius:6px;padding:10px 12px;font-size:12px;line-height:1.55;color:#2C3E50;background:#FDFEFE;outline:none;white-space:pre-wrap}
+  #report .cm-box:focus{border-color:#2E86AB;box-shadow:0 0 0 2px rgba(46,134,171,.15)}
+  #report .cm-hint{color:#95A5A6;font-size:10px;margin-top:4px}
   .btn-print{width:100%;padding:16px;background:transparent;color:var(--accent2);border:1.5px solid var(--accent2);border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}
   .btn-print:hover{background:rgba(56,217,169,.1)}
 
@@ -95,7 +100,7 @@
     .header, .py-status, #card1, #card2 { display:none !important; }
     .container{max-width:100%}
     #report-wrap{margin:0}
-    .btn-print{display:none !important}
+    .btn-print, .cm-hint, #card1b{display:none !important}
     #report{border-radius:0}
     .chart-block{margin-bottom:14px}
     *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important}
@@ -682,6 +687,7 @@ function buildReport(d) {
     });
   }
 
+  html += `<div class="rp-comments"><h3>Comentarios</h3><div class="cm-box" contenteditable="true" spellcheck="false"></div><div class="cm-hint">Hace clic en el cuadro y escribi tus comentarios o recomendaciones; salen impresos junto con el informe. Se borran al generar de nuevo.</div></div>`;
   html += `<div class="rp-footer">Informe generado a partir de la base de datos de calidad de leche del establecimiento<br>${REF_NOTE}</div>`;
   html += `</div>`;
 
