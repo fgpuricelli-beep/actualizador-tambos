@@ -46,6 +46,7 @@
   .param-item label{font-size:12px;color:var(--text2);font-weight:400}
   .param-item input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;font-weight:600;outline:none;transition:border-color .2s}
   .param-item input:focus{border-color:var(--accent)}
+  .param-item select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;font-weight:600;outline:none}
   .btn-run{width:100%;padding:18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
   .btn-run:hover:not(:disabled){background:#6a9ff9;transform:translateY(-1px)}
   .btn-run:disabled{opacity:.35;cursor:not-allowed;transform:none}
@@ -155,8 +156,8 @@
         <input type="number" id="p-dias-desc" value="6" min="1" max="30">
       </div>
       <div class="param-item">
-        <label>Perdida produccion por episodio MC (kg)</label>
-        <input type="number" id="p-kg-mc" value="200" min="0" max="600">
+        <label>Este tambo hace RCS mensual?</label>
+        <select id="p-rcs-mensual"><option value="1">Si (1er episodio MC + RCS de los demas controles, Durr 2008)</option><option value="0">No (todos los episodios MC, Rajala-Schultz)</option></select>
       </div>
       <div class="param-item">
         <label>Precio litro de leche ($)</label>
@@ -195,21 +196,32 @@
 let pyodide = null, pyReady = false, excelBytes = null, resultBytes = null;
 
 const PYTHON_CODE = `
-import io, datetime, re
+import io, datetime, re, math
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-def perdida_rcs_dia(rcs_val):
-    if rcs_val is None or rcs_val <= 100: return 0
-    elif rcs_val <= 200: return 0.5
-    elif rcs_val <= 400: return 1.0
-    elif rcs_val <= 800: return 1.75
-    elif rcs_val <= 1600: return 2.75
-    elif rcs_val <= 3200: return 4.0
-    else: return 5.0
+# Durr et al. 2008 (Livestock Science 117:225-232), Holstein: perdida diaria (kg) = (ln(RCS en miles) - 2) x BPS
+# BPS = perdida por unidad de LnSCC segun dias en lactancia (DEL) y paridad (1ra vs 2da o mas). Tabla 2 del paper.
+DURR_HOL = [(15,0.49,0.88),(30,0.46,0.84),(45,0.43,0.80),(60,0.40,0.78),(75,0.38,0.76),(90,0.36,0.76),
+            (105,0.35,0.76),(120,0.34,0.78),(135,0.34,0.81),(150,0.33,0.84),(165,0.33,0.89),(180,0.34,0.95),
+            (195,0.35,1.02),(210,0.36,1.10),(225,0.38,1.19),(240,0.40,1.29),(255,0.42,1.40),(270,0.45,1.52),
+            (285,0.48,1.66),(300,0.52,1.80)]
 
-def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300, dias_descarte=6, kg_perd_mc=200):
+def durr_bps(dim, nro_lact):
+    col = 1 if (not nro_lact or nro_lact <= 1) else 2
+    for lim, b1, b2 in DURR_HOL:
+        if dim <= lim: return b1 if col == 1 else b2
+    last = DURR_HOL[-1]
+    return last[1] if col == 1 else last[2]
+
+def perdida_rcs_dia(rcs_val, dim=100, nro_lact=1):
+    # Estimacion conservadora: solo se cuenta perdida en controles con RCS > 200 (vaca infectada)
+    if rcs_val is None or rcs_val <= 200: return 0
+    if dim is None or dim < 1: dim = 1
+    return max(0.0, math.log(rcs_val) - 2.0) * durr_bps(dim, nro_lact)
+
+def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, precio_litro=300, dias_descarte=6, kg_perd_mc=200, rcs_mensual=True):
     excel_data = bytes(excel_data)
     wb = load_workbook(io.BytesIO(excel_data))
     ws = wb[wb.sheetnames[0]]
@@ -341,7 +353,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
                              key=lambda x: x[0])
         # Filter to current lactation only
         if ini_lact:
-            rcs_sorted = [(dt, v) for dt, v in rcs_sorted if dt >= ini_lact]
+            rcs_sorted = [(dt, v) for dt, v in rcs_sorted if (dt.year, dt.month) >= (ini_lact.year, ini_lact.month)]
         for idx, (dt, v) in enumerate(rcs_sorted):
             if v > umbral_rcs:
                 if idx > 0:
@@ -409,22 +421,40 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         litros_perd_prod_mc = round(sum(kg_base * f for f in factores_ajustados), 1) if mc_act > 0 else 0
         perdida_prod_mc = round(litros_perd_prod_mc * precio_litro, 0)
 
-        # 2. Perdida por RCS - promedio del Score Lineal de la lactancia actual
+        # 2. Perdida por RCS (Durr 2008): suma de las perdidas diarias de cada control de la lactancia actual
         rcs_lact_vals = [(rcs_col_dates[c], float(ws.cell(info_row,c).value))
                          for c in sorted(rcs_col_dates.keys())
                          if ws.cell(info_row,c).value is not None
                          and str(ws.cell(info_row,c).value).replace('.','').replace(',','').isdigit()]
         if ini_lact:
-            rcs_lact_vals = [(dt, v) for dt, v in rcs_lact_vals if dt >= ini_lact]
-        if rcs_lact_vals:
-            perd_rcs_promedio = sum(perdida_rcs_dia(v) for _, v in rcs_lact_vals) / len(rcs_lact_vals)
+            rcs_lact_vals = [(dt, v) for dt, v in rcs_lact_vals if (dt.year, dt.month) >= (ini_lact.year, ini_lact.month)]
+        # Con RCS mensual: se cuentan todos los controles de la lactancia (antes y despues del 1er episodio de MC), menos el del mes del episodio
+        hay_ctrl = len(rcs_lact_vals) > 0
+        if rcs_mensual and mc_act > 0 and primer_ep is not None and ini_lact:
+            ep_fecha = ini_lact + datetime.timedelta(days=int(primer_ep))
+            rcs_lact_vals = [(dt, v) for dt, v in rcs_lact_vals if (dt.year, dt.month) != (ep_fecha.year, ep_fecha.month)]
+        perd_lit = 0.0
+        for dt, v in rcs_lact_vals:
+            dim_c = ((dt - ini_lact).days + 15) if ini_lact else dias_acu_float
+            perd_lit += perdida_rcs_dia(v, dim_c, nro_lact) * 30
+        if rcs_lact_vals and dias_acu_float > 0:
+            perd_lit = perd_lit * min(1.0, dias_acu_float / (len(rcs_lact_vals) * 30.0))
+        elif not hay_ctrl:
+            perd_lit = perdida_rcs_dia(rcs_ult, dias_acu_float, nro_lact) * min(30.0, dias_acu_float)
+        litros_perd_rcs_lact = round(perd_lit, 1) if dias_acu_float > 0 else 0
+        # Un solo criterio de perdida por vaca (evita contar dos veces):
+        #  - tambo con RCS mensual: descarte de MC (todos los episodios) + perdida de produccion del 1er episodio + perdida por RCS (Durr)
+        #  - tambo sin RCS mensual: descarte de MC + perdida de produccion de todos los episodios (Rajala-Schultz); sin perdida por RCS
+        if rcs_mensual:
+            # solo el 1er episodio de MC (con ajuste por tercio); despues se sigue con la perdida por RCS
+            litros_perd_prod_mc = round(kg_base * factores_ajustados[0], 1) if mc_act > 0 else 0
+            perdida_prod_mc = round(litros_perd_prod_mc * precio_litro, 0)
         else:
-            perd_rcs_promedio = perdida_rcs_dia(rcs_ult)
-        litros_perd_rcs_lact = round(perd_rcs_promedio * dias_acu_float, 1) if dias_acu_float > 0 else 0
+            litros_perd_rcs_lact = 0
         perdida_rcs_lact = round(litros_perd_rcs_lact * precio_litro, 0)
 
         # For display: L/dia using last RCS (current state)
-        perd_rcs_ld = perdida_rcs_dia(rcs_ult)
+        perd_rcs_ld = round(perdida_rcs_dia(rcs_ult, dias_acu_float, nro_lact), 2)
         perdida_rcs_mes = round(perd_rcs_ld * 30 * precio_litro, 0)
 
         # 3. Total lactation loss (descarte MC + perdida produccion MC + perdida RCS)
@@ -501,7 +531,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
     ws2['A2'].fill=xf('E8E8E8'); ws2['A2'].alignment=xc()
     params2=[('C2','Prod. prom. (L):','D2',prom_prod),('E2','Umbral RCS:','F2',umbral_rcs),
              ('G2','Meses RCS:','H2',meses_rcs),('I2','Dias descarte:','J2',dias_descarte),
-             ('K2','Kg perd/ep MC:','L2',kg_perd_mc),('M2','Precio litro ($):','N2',precio_litro)]
+             ('K2','RCS mensual:','L2','Si' if rcs_mensual else 'No'),('M2','Precio litro ($):','N2',precio_litro)]
     for lc,lt,vc,vd in params2:
         ws2[lc]=lt; ws2[lc].font=Font(name='Arial',bold=True,size=8); ws2[lc].alignment=Alignment(horizontal='right',vertical='center')
         ws2[vc]=vd; ws2[vc].font=Font(name='Arial',bold=True,size=10,color='1F4E78')
@@ -590,9 +620,9 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
             ws2.cell(r,12).fill=xf(RED_LT); ws2.cell(r,12).font=Font(name='Arial',bold=True,color=RED,size=9)
         elif d['pct_aporte']>2:
             ws2.cell(r,12).fill=xf(ORANGE_LT); ws2.cell(r,12).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
-        if d['perd_rcs_ld'] >= 2.75:
+        if d['perd_rcs_ld'] >= 4.0:
             ws2.cell(r,20).fill=xf(RED_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=RED,size=9)
-        elif d['perd_rcs_ld'] >= 1.0:
+        elif d['perd_rcs_ld'] >= 2.0:
             ws2.cell(r,20).fill=xf(ORANGE_LT); ws2.cell(r,20).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
         total_litros_row = d['total_litros_lact']
         perdida_total_row = d['perdida_total_lact']
@@ -601,7 +631,7 @@ def generar_ranking(excel_data, prom_prod=20, umbral_rcs=400, meses_rcs=3, preci
         elif perdida_total_row > 80000:
             ws2.cell(r,23).fill=xf(ORANGE_LT); ws2.cell(r,23).font=Font(name='Arial',bold=True,color=ORANGE,size=9)
         ws2.row_dimensions[r].height=15
-        tot_perd_mc+=d['perdida_mc']; tot_perd_rcs+=d['perdida_rcs_lact']
+        tot_perd_mc+=d['perdida_mc']+d['perdida_prod_mc']; tot_perd_rcs+=d['perdida_rcs_lact']
 
     ws2.freeze_panes='A6'
     ws2.merge_cells('M2:W2')
@@ -667,7 +697,8 @@ async function runRanking() {
   const umbralRcs = parseFloat(document.getElementById('p-umbral-rcs').value) || 400;
   const mesesRcs = parseInt(document.getElementById('p-meses-rcs').value) || 3;
   const diasDesc = parseInt(document.getElementById('p-dias-desc').value) || 6;
-  const kgMC = parseFloat(document.getElementById('p-kg-mc').value) || 200;
+  const kgMC = 200;
+  const rcsMensual = document.getElementById('p-rcs-mensual').value === '1';
   const precio = parseFloat(document.getElementById('p-precio').value) || 300;
 
   try {
@@ -677,11 +708,12 @@ async function runRanking() {
     pyodide.globals.set('meses_rcs_js', mesesRcs);
     pyodide.globals.set('dias_desc_js', diasDesc);
     pyodide.globals.set('kg_mc_js', kgMC);
+    pyodide.globals.set('rcs_mensual_js', rcsMensual);
     pyodide.globals.set('precio_js', precio);
 
     const resultJson = await pyodide.runPythonAsync(`
 import json
-rb, cats, pmc, prcs, total = generar_ranking(excel_data_js, prom_prod_js, umbral_rcs_js, meses_rcs_js, precio_js, dias_desc_js, kg_mc_js)
+rb, cats, pmc, prcs, total = generar_ranking(excel_data_js, prom_prod_js, umbral_rcs_js, meses_rcs_js, precio_js, dias_desc_js, kg_mc_js, rcs_mensual_js)
 result_bytes_py = rb
 json.dumps({'cats':cats,'pmc':pmc,'prcs':prcs,'total':total})
 `);
@@ -696,8 +728,8 @@ json.dumps({'cats':cats,'pmc':pmc,'prcs':prcs,'total':total})
 
     const ptext = document.getElementById('perdidas-text');
     ptext.innerHTML =
-      'Perdida por leche descartada (MC): $' + info.pmc.toLocaleString() + '\n' +
-      'Perdida estimada por RCS elevado (mensual): $' + info.prcs.toLocaleString() + '\n' +
+      'Perdida por mastitis clinica (leche descartada + produccion si no hay RCS mensual): $' + info.pmc.toLocaleString() + '\n' +
+      'Perdida por RCS elevado (lactancia actual, Durr 2008): $' + info.prcs.toLocaleString() + '\n' +
       'Total estimado: $' + (info.pmc + info.prcs).toLocaleString();
 
     document.getElementById('result-box').classList.add('visible');
