@@ -544,6 +544,32 @@ def _vc_runs(ws, hr):
     if cur is not None: runs.append(tuple(cur))
     return runs
 
+def _vc_blocks(ws, hr):
+    """Bloques MC, revision y RCS. Usa los titulos de seccion (fila anterior al encabezado) si existen;
+    asi no se confunde si hay columnas extra o encabezados de texto dentro de un bloque.
+    Si no hay titulos, usa los bloques contiguos de fechas."""
+    labels = {}
+    for rr in (hr - 1, hr - 2):
+        if rr < 1: continue
+        for c in range(1, ws.max_column + 1):
+            t = ws.cell(rr, c).value
+            if not isinstance(t, str): continue
+            u = t.strip().upper()
+            for key, pref in (('mc', 'MASTITIS'), ('rev', 'REVISA'), ('rcs', 'RCS'), ('sum', 'RESUMEN')):
+                if u.startswith(pref) and key not in labels: labels[key] = c
+    if 'mc' in labels and 'rev' in labels and 'rcs' in labels and labels['mc'] < labels['rev'] < labels['rcs']:
+        ends = [labels['mc'], labels['rev'], labels['rcs']]
+        ends.append(labels['sum'] if ('sum' in labels and labels['sum'] > labels['rcs']) else ws.max_column + 1)
+        out = []
+        for i in range(3):
+            cols = [c for c in range(ends[i], ends[i + 1]) if _vc_is_date(ws.cell(hr, c).value)]
+            if not cols: out = None; break
+            out.append((min(cols), max(cols)))
+        if out: return tuple(out)
+    runs = _vc_runs(ws, hr)
+    if len(runs) < 3: return None
+    return (runs[0], runs[1], runs[2])
+
 def _vc_add_months(ym, k):
     y, m = ym
     t = y * 12 + (m - 1) + k
@@ -559,10 +585,10 @@ def _vc_num(v):
 
 def build_vc_sheets(wb, ws, hr, tambo_col=None, names=None):
     """Agrega por tambo las hojas 'vc problema' y 'Muestras'. Devuelve lista de nombres creados."""
-    runs = _vc_runs(ws, hr)
-    if len(runs) < 3:
+    blk = _vc_blocks(ws, hr)
+    if blk is None:
         return []
-    mc_run, rev_run, rcs_run = runs[0], runs[1], runs[2]
+    mc_run, rev_run, rcs_run = blk
     # columnas de texto entre el bloque de revision y el de RCS
     txt = {}
     for c in range(rev_run[1] + 1, rcs_run[0]):
@@ -581,7 +607,8 @@ def build_vc_sheets(wb, ws, hr, tambo_col=None, names=None):
     def colmap(run):
         d = {}
         for c in range(run[0], run[1] + 1):
-            d[_vc_month(ws.cell(hr, c).value)] = c
+            if _vc_is_date(ws.cell(hr, c).value):
+                d[_vc_month(ws.cell(hr, c).value)] = c
         return d
     mc_map, rev_map, rcs_map = colmap(mc_run), colmap(rev_run), colmap(rcs_run)
 
